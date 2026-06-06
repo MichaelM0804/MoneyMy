@@ -727,6 +727,48 @@ body{font-family:-apple-system,'SF Pro Text',system-ui,sans-serif;color:var(--t1
     </div>
   </div>
 
+  <!-- EDIT TRANSACTION SHEET -->
+  <div class="overlay" id="edit-tx-sheet" onclick="UI.overlayClick(event,'edit-tx-sheet')">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <div style="padding:14px 20px 0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+        <div class="sheet-title" style="padding:0" id="edit-tx-title">Редактировать</div>
+        <button onclick="App.deleteTx()" style="background:rgba(255,69,58,0.15);border:none;color:#FF453A;padding:6px 14px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">🗑 Удалить</button>
+      </div>
+      <div class="sheet-body">
+        <label class="flabel">Сумма</label>
+        <input class="finput fbig" type="number" inputmode="decimal" id="edit-amount">
+        <div id="edit-cat-row">
+          <label class="flabel">Категория</label>
+          <div class="fselect-wrap">
+            <select class="fselect" id="edit-cat"></select>
+            <span class="fselect-arrow">›</span>
+          </div>
+        </div>
+        <label class="flabel">Счёт</label>
+        <div class="fselect-wrap">
+          <select class="fselect" id="edit-acc"></select>
+          <span class="fselect-arrow">›</span>
+        </div>
+        <div id="edit-acc2-row" style="display:none">
+          <label class="flabel">На счёт</label>
+          <div class="fselect-wrap">
+            <select class="fselect" id="edit-acc2"></select>
+            <span class="fselect-arrow">›</span>
+          </div>
+        </div>
+        <label class="flabel">Дата</label>
+        <input class="finput" type="date" id="edit-date">
+        <label class="flabel">Заметка</label>
+        <input class="finput" type="text" id="edit-note" placeholder="Необязательно">
+        <div class="frow">
+          <button class="fbtn fbtn-gray" onclick="UI.closeSheet('edit-tx-sheet')">Отмена</button>
+          <button class="fbtn fbtn-green" onclick="App.saveEditTx()">Сохранить</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- CONFIRM SHEET -->
   <div class="overlay" id="confirm-sheet" onclick="UI.overlayClick(event,'confirm-sheet')">
     <div class="sheet" style="max-height:60vh;">
@@ -1084,32 +1126,43 @@ function renderCatGrid() {
 }
 
 function renderHistory() {
-  const txs = [...filteredTx()].reverse().slice(0, 15);
+  // Give each transaction a stable id if it doesn't have one
+  state.transactions.forEach((tx, i) => { if (!tx._id) tx._id = 'tx_' + i + '_' + Math.random().toString(36).slice(2,5); });
+
+  const allTxs = [...filteredTx()].reverse();
+  const txs = allTxs.slice(0, 50);
   const list = document.getElementById('tx-list');
   if (!txs.length) { list.innerHTML = '<div class="empty-state">Нет операций за этот месяц</div>'; return; }
   const sym = currency();
   list.innerHTML = txs.map(tx => {
+    const txId = tx._id;
     if (tx.type === 'transfer') {
       const from = getAcc(tx.fromAcc), to = getAcc(tx.toAcc);
-      return `<div class="tx-item">
+      return `<div class="tx-item" onclick="UI.openEditTx('${txId}')">
         <div class="tx-icon" style="background:rgba(80,158,126,0.15);font-size:18px">⇄</div>
         <div class="tx-info">
           <div class="tx-cat">Перевод</div>
-          <div class="tx-note">${from?.icon||''} → ${to?.icon||''} ${tx.note||''}</div>
+          <div class="tx-note">${from?.icon||''} → ${to?.icon||''} ${tx.note||''} <span style="color:var(--t3)">${tx.date}</span></div>
         </div>
-        <div class="tx-amt tx-tr">${fmt(tx.amount)}</div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div class="tx-amt tx-tr">${fmt(tx.amount)}</div>
+          <span style="color:var(--t3);font-size:18px;">›</span>
+        </div>
       </div>`;
     }
     const cat = getCat(tx.cat) || {icon:'?',name:tx.cat,color:'#888'};
     const acc = getAcc(tx.acc);
     const accSym = acc ? acc.currency : sym;
-    return `<div class="tx-item">
+    return `<div class="tx-item" onclick="UI.openEditTx('${txId}')">
       <div class="tx-icon" style="background:${cat.color}22">${cat.icon}</div>
       <div class="tx-info">
         <div class="tx-cat">${cat.name}</div>
         <div class="tx-note">${acc?acc.icon+' ':''} ${tx.note||''} <span style="color:var(--t3)">${tx.date}</span></div>
       </div>
-      <div class="tx-amt ${tx.type==='expense'?'tx-neg':'tx-pos'}">${tx.type==='expense'?'−':'+'}${fmt(tx.amount,accSym)}</div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div class="tx-amt ${tx.type==='expense'?'tx-neg':'tx-pos'}">${tx.type==='expense'?'−':'+'}${fmt(tx.amount,accSym)}</div>
+        <span style="color:var(--t3);font-size:18px;">›</span>
+      </div>
     </div>`;
   }).join('');
 }
@@ -1128,6 +1181,41 @@ const App = {
     render();
     UI.toast('Порядок счетов сохранён');
   },
+  saveEditTx() {
+    const tx = state.transactions.find(t => t._id === state._editTxId);
+    if (!tx) return;
+    const amount = parseFloat(document.getElementById('edit-amount').value);
+    if (!amount || amount <= 0) { UI.toast('Введите сумму'); return; }
+    tx.amount = amount;
+    tx.date   = document.getElementById('edit-date').value || tx.date;
+    tx.note   = document.getElementById('edit-note').value;
+    if (tx.type === 'transfer') {
+      tx.fromAcc = document.getElementById('edit-acc').value;
+      tx.toAcc   = document.getElementById('edit-acc2').value;
+    } else {
+      tx.cat = document.getElementById('edit-cat').value;
+      tx.acc = document.getElementById('edit-acc').value;
+    }
+    UI.closeSheet('edit-tx-sheet');
+    persist(); render();
+    UI.toast('Запись обновлена');
+  },
+
+  deleteTx() {
+    const id = state._editTxId;
+    if (!id) return;
+    UI.openConfirm('Удалить запись', 'Удалить эту транзакцию?', [{
+      label: '🗑 Удалить', color: '#FF453A', action: () => {
+        state.transactions = state.transactions.filter(t => t._id !== id);
+        state._editTxId = null;
+        UI.closeSheet('confirm-sheet');
+        UI.closeSheet('edit-tx-sheet');
+        persist(); render();
+        UI.toast('Запись удалена');
+      }
+    }]);
+  },
+
   selectAcc(id) { state.selAcc = id; render(); },
   changeMonth(d) {
     // When going forward, snapshot the month we're leaving
@@ -2254,6 +2342,38 @@ const UI = {
     document.getElementById('na-name').value = '';
     document.getElementById('na-balance').value = '0';
     this.openSheet('newacc-sheet');
+  },
+
+  openEditTx(txId) {
+    const tx = state.transactions.find(t => t._id === txId);
+    if (!tx) return;
+    state._editTxId = txId;
+    const isTr = tx.type === 'transfer';
+    document.getElementById('edit-tx-title').textContent =
+      isTr ? 'Редактировать перевод' : tx.type === 'expense' ? 'Редактировать расход' : 'Редактировать доход';
+    document.getElementById('edit-amount').value = tx.amount;
+    document.getElementById('edit-date').value   = tx.date || '';
+    document.getElementById('edit-note').value   = tx.note || '';
+    document.getElementById('edit-cat-row').style.display  = isTr ? 'none' : '';
+    document.getElementById('edit-acc2-row').style.display = isTr ? '' : 'none';
+
+    if (!isTr) {
+      const cats = tx.type === 'income' ? state.catsI : state.catsE;
+      document.getElementById('edit-cat').innerHTML =
+        cats.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('');
+      document.getElementById('edit-cat').value = tx.cat;
+    }
+    const accOpts = state.accounts.map(a =>
+      `<option value="${a.id}">${a.icon} ${a.name}</option>`).join('');
+    document.getElementById('edit-acc').innerHTML  = accOpts;
+    document.getElementById('edit-acc2').innerHTML = accOpts;
+    if (isTr) {
+      document.getElementById('edit-acc').value  = tx.fromAcc;
+      document.getElementById('edit-acc2').value = tx.toAcc;
+    } else {
+      document.getElementById('edit-acc').value = tx.acc;
+    }
+    this.openSheet('edit-tx-sheet');
   },
 
   openSheet(id) {
