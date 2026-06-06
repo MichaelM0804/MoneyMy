@@ -38,6 +38,14 @@ body{font-family:-apple-system,'SF Pro Text',system-ui,sans-serif;color:var(--t1
 /* Donut */
 .chart-area{display:flex;flex-direction:column;align-items:center;padding:4px 0 6px;}
 .donut-wrap{position:relative;width:190px;height:190px;}
+/* Donut legend */
+.donut-legend{width:calc(100% - 32px);margin-top:8px;display:flex;flex-direction:column;gap:5px;}
+.legend-row{display:flex;align-items:center;gap:8px;}
+.legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.legend-icon{font-size:13px;line-height:1;flex-shrink:0;}
+.legend-name{font-size:12px;color:var(--t2);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.legend-pct{font-size:12px;font-weight:600;color:var(--t1);flex-shrink:0;}
+.legend-amt{font-size:11px;color:var(--t3);flex-shrink:0;margin-left:4px;}
 #donut-canvas{width:190px;height:190px;}
 .donut-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;}
 .donut-balance{font-size:22px;font-weight:700;letter-spacing:-.5px;}
@@ -267,6 +275,7 @@ body{font-family:-apple-system,'SF Pro Text',system-ui,sans-serif;color:var(--t1
         <div class="sum-item"><div class="sum-val sum-expense" id="s-expense">₪0</div><div class="sum-lbl" data-i18n="expense">Расходы</div></div>
         <div class="sum-item"><div class="sum-val sum-transfer" id="s-transfer">₪0</div><div class="sum-lbl" data-i18n="transfers">Переводы</div></div>
       </div>
+      <div class="donut-legend" id="donut-legend"></div>
       <div class="budget-wrap" id="budget-wrap" style="display:none">
         <div class="budget-track"><div class="budget-fill" id="budget-fill" style="width:0%"></div></div>
         <div class="budget-info"><span id="b-spent"></span><span id="b-limit"></span></div>
@@ -998,6 +1007,18 @@ function persist() {
   try { Store.save('monefy_transactions', state.transactions); } catch(e) {}
 }
 
+// Called after every transaction add/edit/delete — recalculates piggy snapshots
+let _piggyRecalcTimer = null;
+function piggyRecalc() {
+  if (_piggyRecalcTimer) clearTimeout(_piggyRecalcTimer);
+  _piggyRecalcTimer = setTimeout(() => {
+    if (typeof App !== 'undefined' && App._autoPiggyAllPastMonths) {
+      App._autoPiggyAllPastMonths();
+      recalcBalances();
+    }
+  }, 300);
+}
+
 function loadTransactions() {
   const chunks = Store.load('monefy_tx_chunks', 0);
   if (chunks > 0) {
@@ -1152,7 +1173,9 @@ function drawDonut() {
   ctx.clearRect(0, 0, W, W);
 
   const spend = catSpend();
-  const data = state.catsE.filter(c => spend[c.id]).map(c => ({v: spend[c.id], color: c.color}));
+  const sym = currency();
+  const cats = state.catsE.filter(c => spend[c.id]);
+  const data = cats.map(c => ({v: spend[c.id], color: c.color, icon: c.icon, name: c.name}));
   const total = data.reduce((s, d) => s + d.v, 0);
 
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2);
@@ -1167,6 +1190,24 @@ function drawDonut() {
       angle += sweep;
     });
   }
+
+  // Render legend
+  const legend = document.getElementById('donut-legend');
+  if (!legend) return;
+  if (!total || data.length === 0) { legend.innerHTML = ''; return; }
+
+  // Sort by amount descending, show top 6
+  const sorted = [...data].sort((a,b) => b.v - a.v).slice(0, 6);
+  legend.innerHTML = sorted.map(d => {
+    const pct = Math.round((d.v / total) * 100);
+    return `<div class="legend-row">
+      <div class="legend-dot" style="background:${d.color}"></div>
+      <span class="legend-icon">${d.icon}</span>
+      <span class="legend-name">${d.name}</span>
+      <span class="legend-pct">${pct}%</span>
+      <span class="legend-amt">${fmt(d.v, sym)}</span>
+    </div>`;
+  }).join('');
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1371,6 +1412,7 @@ const App = {
     }
     UI.closeSheet('edit-tx-sheet');
     persist(); render();
+    piggyRecalc();
     UI.toast('Запись обновлена');
   },
 
@@ -1384,6 +1426,7 @@ const App = {
         UI.closeSheet('confirm-sheet');
         UI.closeSheet('edit-tx-sheet');
         persist(); render();
+        piggyRecalc();
         UI.toast('Запись удалена');
       }
     }]);
@@ -1412,19 +1455,10 @@ const App = {
       if (!tgt) return;
 
       const note = `🐷 Остаток ${MONTHS_RU[m]} ${y} (${acc.name})`;
-
-      // Skip if already snapshotted this month
-      const already = state.transactions.find(tx =>
-        tx._piggySnapshot && tx._sourceAccId === acc.id &&
-        tx._snapshotMonth === m && tx._snapshotYear === y
-      );
-      if (already) return;
-
-      // Compute month net: income - expenses for THIS month only
-      // (not cumulative — user sees monthly savings)
       const endDate   = new Date(y, m + 1, 0).toISOString().slice(0, 10);
       const startDate = new Date(y, m, 1).toISOString().slice(0, 10);
 
+      // Compute month net
       let monthNet = 0;
       state.transactions.forEach(tx => {
         if (tx._piggySnapshot) return;
@@ -1436,19 +1470,52 @@ const App = {
       });
       monthNet = Math.round(monthNet * 100) / 100;
 
-      if (monthNet <= 0) return; // nothing to copy if month was negative
+      // Remove existing snapshot for this month to recalculate
+      state.transactions = state.transactions.filter(tx =>
+        !(tx._piggySnapshot && tx._sourceAccId === acc.id &&
+          tx._snapshotMonth === m && tx._snapshotYear === y)
+      );
 
-      // Add snapshot as income on piggybank (source balance NOT reduced)
+      if (monthNet <= 0) return; // nothing to copy
+
+      // Add fresh snapshot
       state.transactions.push({
         type: 'income',
         cat:  this._findOrCreateCat('🐷 Остаток месяца', 'income'),
-        acc:  tgt.id, amount: monthNet, note, date: endDate,
+        acc:  tgt.id, amount: monthNet, note,
+        date: endDate,
         _piggySnapshot: true, _sourceAccId: acc.id,
         _snapshotMonth: m, _snapshotYear: y,
       });
-      persist();
-      UI.toast(`🐷 Скопировано ${fmt(monthNet, acc.currency)} за ${MONTHS_RU[m]}`);
     });
+  },
+
+  // Run piggy for ALL past months (not current) whenever data changes
+  _autoPiggyAllPastMonths() {
+    const now = new Date();
+    const curM = now.getMonth();
+    const curY = now.getFullYear();
+
+    state.accounts.forEach(acc => {
+      if (!acc.piggy?.enabled || !acc.piggy?.targetAccId) return;
+
+      // Find earliest transaction for this account
+      const accTxs = state.transactions.filter(tx =>
+        !tx._piggySnapshot &&
+        (tx.acc === acc.id || tx.fromAcc === acc.id || tx.toAcc === acc.id)
+      );
+      if (!accTxs.length) return;
+
+      const firstDate = accTxs.map(tx => new Date(tx.date)).sort((a,b) => a-b)[0];
+      let d = new Date(firstDate.getFullYear(), firstDate.getMonth(), 1);
+
+      // Process all months UP TO (not including) current month
+      while (d.getFullYear() < curY || (d.getFullYear() === curY && d.getMonth() < curM)) {
+        this._autoPiggyForCurrentMonth(d.getMonth(), d.getFullYear());
+        d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+      }
+    });
+    persist();
   },
 
   _findOrCreateCat(name, type) {
@@ -1481,6 +1548,7 @@ const App = {
     }
     UI.closeSheet('tx-sheet');
     persist();
+    piggyRecalc();
     render();
     UI.toast(state.txType === 'transfer' ? 'Перевод добавлен' : state.txType === 'expense' ? 'Расход добавлен' : 'Доход добавлен');
   },
@@ -3666,6 +3734,7 @@ if ('serviceWorker' in navigator) {
 render();
 Gist.init();
 I18n.apply();
+piggyRecalc();
 </script>
 <!-- Piggy backfill progress overlay -->
 <div id="piggy-progress-overlay">
