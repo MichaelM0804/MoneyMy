@@ -179,9 +179,10 @@ body{font-family:-apple-system,'SF Pro Text',system-ui,sans-serif;color:var(--t1
 .tab-btn.active{background:var(--green-accent);color:#fff;}
 
 /* Emoji picker */
-.emoji-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:6px;max-height:160px;overflow-y:auto;}
+.emoji-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:6px;max-height:220px;overflow-y:auto;}
 .emoji-opt{background:var(--card2);border:none;border-radius:8px;padding:8px 4px;font-size:22px;cursor:pointer;transition:background .15s;}
 .emoji-opt:active,.emoji-opt.selected{background:rgba(48,209,88,0.25);}
+.emoji-search{width:100%;background:var(--card2);border:none;border-radius:8px;padding:8px 12px;color:var(--t1);font-size:14px;margin-bottom:6px;font-family:inherit;outline:none;}
 .color-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-top:6px;}
 .color-opt{width:100%;aspect-ratio:1;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:border .15s;}
 .color-opt.selected{border-color:#fff;}
@@ -593,6 +594,7 @@ body{font-family:-apple-system,'SF Pro Text',system-ui,sans-serif;color:var(--t1
         <label class="flabel">Название</label>
         <input class="finput" id="cat-name" placeholder="Например: Спорт">
         <div class="section-hdr">Иконка</div>
+        <input class="emoji-search" id="emoji-search" placeholder="🔍 Поиск..." oninput="UI.filterEmojis(this.value)">
         <div class="emoji-grid" id="emoji-grid"></div>
         <div class="section-hdr">Цвет</div>
         <div class="color-grid" id="color-grid"></div>
@@ -837,7 +839,44 @@ body{font-family:-apple-system,'SF Pro Text',system-ui,sans-serif;color:var(--t1
 // ═══════════════════════════════════════════════════════════════
 
 const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
-const EMOJIS = ['🍔','🚗','🏠','💊','🎬','👗','☕','📦','🎁','🛒','✈️','🎮','📚','💪','🐾','🌿','💡','🔧','🎵','🍕','🍺','🧴','🎓','👶','🚿','🎨','🏖','🎯','💻','📱','🌍','💼','💰','🏦','💵','💳','➕','⭐','❤️','🏥'];
+const EMOJIS = [
+  // Еда и напитки
+  '🍔','🍕','🍣','🍜','🍱','🥗','🌮','🌯','🥪','🍗','🥩','🍖','🥓','🍳','🥚',
+  '🧀','🥐','🍞','🥨','🧁','🎂','🍰','🍩','🍦','🍫','🍬','🍭','🍎','🍊','🍋',
+  '🍇','🍓','🫐','🍉','🥝','🥑','🥦','🥕','🧅','🧄',
+  '☕','🍵','🧃','🥤','🧋','🍺','🍷','🥂','🍸','🧉',
+  // Транспорт
+  '🚗','🚕','🚙','🏎','🚓','🚑','🚒','🚌','🚎','🚐','🚚','🚛','🚜','🛵','🏍',
+  '🚲','🛴','✈️','🚀','🛳','🚢','⛵','🚁','🚂','🚆','🚇','🚈','🛺','⛽',
+  // Дом и быт
+  '🏠','🏡','🏢','🏗','🏰','🛋','🪑','🛏','🚿','🛁','🪴','🧹','🧺','🧻','🧼',
+  '🪣','🔑','🚪','🪟','💡','🔧','🔨','🪛','🔩','🧲','🪜','🧯',
+  // Одежда и красота
+  '👗','👔','👕','👖','👒','🎩','👜','👛','💼','🧳','👟','👠','👡','👢','🧥',
+  '🧣','🧤','🧢','💄','💅','🪮','🪥','🧴','🧹','💍','💎',
+  // Здоровье и спорт
+  '💊','🏥','🩺','🩹','🧬','💉','🏋','🧘','🚴','🏊','⚽','🏀','🎾','🏐','🎯',
+  '🥊','🏄','🤸','🧗','🏇','⛷','🎿','🏒','🥋','🤼','💪','🩻','🫀','🦷',
+  // Развлечения
+  '🎬','🎮','🎲','🎭','🎪','🎡','🎢','🎠','🎨','🖼','🎵','🎸','🎹','🎺','🥁',
+  '🎤','🎧','📺','📻','🎙','🎞','📽','🎟','🎫','🃏','🀄','♟','🎯','🎳','🎰',
+  // Образование и работа
+  '📚','📖','📝','✏️','🖊','📐','📏','🔬','🔭','💻','🖥','🖨','⌨️','🖱','📱',
+  '📷','📸','📹','🎓','🏫','📊','📈','📉','🗂','📋','📌','📍','🗓','⏰','🕐',
+  // Финансы
+  '💰','💵','💴','💶','💷','💳','🏦','💱','🪙','💸','🏧','📊','💹','🏷','🛍',
+  // Природа и путешествия
+  '🌍','🌿','🌳','🌲','🌴','🌵','🌾','🍀','🌸','🌺','🌻','🌹','🍁','🍄','🌊',
+  '🏖','🏝','🏔','🗻','🌋','🏕','🌅','🌄','🌈','⭐','🌙','☀️','❄️','🌧','⛈',
+  // Люди и семья
+  '👶','🧒','👦','👧','👨','👩','🧑','👴','👵','👪','🤰','🫂','🤝','👫','💑',
+  // Животные
+  '🐾','🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸',
+  '🐙','🦋','🐝','🐠','🐧','🦜','🐴','🦄','🐉',
+  // Разное
+  '🎁','🎀','🎊','🎉','🪄','🔮','💫','✨','🌟','❤️','🧡','💛','💚','💙','💜',
+  '🖤','🤍','🩷','🩵','🩶','➕','⭐','🔥','💥','🎗','🏆','🥇','🎖','🏅','🪧',
+];
 const COLORS = ['#FF6B35','#4CAF82','#5B8DEF','#E84393','#9B59F5','#F5A623','#A0614B','#8E9AAF','#FF453A','#30D158','#0A84FF','#FF9F0A','#BF5AF2','#FF375F','#64D2FF','#FFD60A'];
 
 const DEFAULT_CATS_E = [
@@ -2771,6 +2810,7 @@ const UI = {
     this.buildColorGrid();
     this.closeSheet('catman-sheet');
     this.openSheet('cat-sheet');
+    const es = document.getElementById('emoji-search'); if (es) es.value = '';
   },
 
   openEditCat(id, type) {
@@ -2787,13 +2827,19 @@ const UI = {
     this.buildColorGrid();
     this.closeSheet('catman-sheet');
     this.openSheet('cat-sheet');
+    const es = document.getElementById('emoji-search'); if (es) es.value = '';
   },
 
-  buildEmojiGrid() {
+  buildEmojiGrid(filter = '') {
     const grid = document.getElementById('emoji-grid');
-    grid.innerHTML = EMOJIS.map(e =>
+    const list = filter ? EMOJIS.filter(e => e.includes(filter)) : EMOJIS;
+    grid.innerHTML = list.map(e =>
       `<button class="emoji-opt${e===state.newCatEmoji?' selected':''}" onclick="UI.pickEmoji('${e}')">${e}</button>`
     ).join('');
+  },
+
+  filterEmojis(val) {
+    this.buildEmojiGrid(val);
   },
 
   pickEmoji(e) {
