@@ -1455,8 +1455,9 @@ const App = {
       if (!tgt) return;
 
       const note = `🐷 Остаток ${MONTHS_RU[m]} ${y} (${acc.name})`;
-      const endDate   = new Date(y, m + 1, 0).toISOString().slice(0, 10);
-      const startDate = new Date(y, m, 1).toISOString().slice(0, 10);
+      const endDate     = new Date(y, m + 1, 0).toISOString().slice(0, 10); // последний день месяца (для расчёта)
+      const startDate   = new Date(y, m, 1).toISOString().slice(0, 10);
+      const snapshotDate = new Date(y, m + 1, 1).toISOString().slice(0, 10); // 1-е следующего месяца (дата в копилке)
 
       // Compute month net
       let monthNet = 0;
@@ -1483,7 +1484,7 @@ const App = {
         type: 'income',
         cat:  this._findOrCreateCat('🐷 Остаток месяца', 'income'),
         acc:  tgt.id, amount: monthNet, note,
-        date: endDate,
+        date: snapshotDate,
         _piggySnapshot: true, _sourceAccId: acc.id,
         _snapshotMonth: m, _snapshotYear: y,
       });
