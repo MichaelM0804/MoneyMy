@@ -1473,10 +1473,21 @@ const App = {
       monthNet = Math.round(monthNet * 100) / 100;
 
       // Remove existing snapshot for this month to recalculate
-      state.transactions = state.transactions.filter(tx =>
-        !(tx._piggySnapshot && tx._sourceAccId === acc.id &&
-          tx._snapshotMonth === m && tx._snapshotYear === y)
-      );
+      // Also catches old snapshots that don't have _snapshotMonth/_snapshotYear fields
+      state.transactions = state.transactions.filter(tx => {
+        if (!tx._piggySnapshot || tx._sourceAccId !== acc.id) return true;
+        // Match by fields if available
+        if (tx._snapshotMonth !== undefined && tx._snapshotYear !== undefined) {
+          return !(tx._snapshotMonth === m && tx._snapshotYear === y);
+        }
+        // Fallback: match by note or by date range (old snapshots)
+        if (tx.note === note) return false;
+        const txDate = new Date(tx.date);
+        if (txDate.getFullYear() === y && txDate.getMonth() === m) return false;
+        // Also catch if date is first of next month (new format) for same period
+        if (txDate.getFullYear() === y && txDate.getMonth() === m + 1 && txDate.getDate() === 1) return false;
+        return true;
+      });
 
       if (monthNet <= 0) return; // nothing to copy
 
@@ -1974,12 +1985,14 @@ const App = {
       '🐷 Пересчитать копилку',
       'Удалить все снимки копилки и пересчитать заново с правильными датами?',
       [{ label: '🔄 Пересчитать', color: '#FF9F0A', action: () => {
-        // Remove all piggy snapshots
-        state.transactions = state.transactions.filter(tx => !tx._piggySnapshot);
+        // Remove ALL piggy snapshots — by flag OR by note pattern (old snapshots may lack the flag)
+        state.transactions = state.transactions.filter(tx =>
+          !tx._piggySnapshot && !(tx.note && tx.note.startsWith('🐷 Остаток'))
+        );
         persist();
         UI.closeSheet('confirm-sheet');
         UI.closeSheet('menu-sheet');
-        // Recalculate all
+        // Recalculate all past months
         this._autoPiggyAllPastMonths();
         recalcBalances();
         render();
@@ -3756,20 +3769,30 @@ render();
 Gist.init();
 I18n.apply();
 
-// Migrate old piggy snapshots: fix dates from end-of-month to first day of next month
+// Migration: remove all old piggy snapshots and recreate with correct dates
 (function migrateSnapshotDates() {
-  let changed = false;
-  state.transactions.forEach(tx => {
-    if (!tx._piggySnapshot || tx._snapshotMonth === undefined) return;
-    const m = tx._snapshotMonth;
-    const y = tx._snapshotYear;
-    const correctDate = new Date(y, m + 1, 1).toISOString().slice(0, 10);
-    if (tx.date !== correctDate) {
-      tx.date = correctDate;
-      changed = true;
-    }
+  const hadOld = state.transactions.some(tx =>
+    tx._piggySnapshot || (tx.note && tx.note.startsWith('🐷 Остаток'))
+  );
+  if (!hadOld) return;
+  // Check if any have wrong date format (end of month instead of start of next)
+  const needsMigration = state.transactions.some(tx => {
+    if (!tx._piggySnapshot && !(tx.note && tx.note.startsWith('🐷 Остаток'))) return false;
+    if (tx._snapshotMonth === undefined) return true; // old format
+    const correctDate = new Date(tx._snapshotYear, tx._snapshotMonth + 1, 1).toISOString().slice(0, 10);
+    return tx.date !== correctDate;
   });
-  if (changed) { persist(); }
+  if (!needsMigration) return;
+  // Remove all and recreate
+  state.transactions = state.transactions.filter(tx =>
+    !tx._piggySnapshot && !(tx.note && tx.note.startsWith('🐷 Остаток'))
+  );
+  persist();
+  setTimeout(() => {
+    App._autoPiggyAllPastMonths();
+    recalcBalances();
+    render();
+  }, 100);
 })();
 
 piggyRecalc();
