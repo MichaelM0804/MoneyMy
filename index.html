@@ -7,8 +7,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Monefy">
 <meta name="theme-color" content="#1C6B45">
-<link rel="manifest" href="/manifest.json">
-<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
 <title>Monefy</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
@@ -84,6 +84,22 @@ body{font-family:-apple-system,'SF Pro Text',system-ui,sans-serif;color:var(--t1
 .edit-mode .cat-del-btn{display:block;}
 .edit-mode .cat-btn{animation:wobble .5s infinite alternate;}
 @keyframes wobble{0%{transform:rotate(-1deg);}100%{transform:rotate(1deg);}}
+
+/* Piggy progress overlay */
+#piggy-progress-overlay{
+  position:fixed;inset:0;z-index:999;
+  background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);
+  display:none;flex-direction:column;align-items:center;justify-content:center;gap:20px;
+}
+#piggy-progress-overlay.visible{display:flex;}
+.piggy-ring{position:relative;width:100px;height:100px;}
+.piggy-ring svg{transform:rotate(-90deg);}
+.piggy-ring-track{fill:none;stroke:rgba(255,255,255,0.1);stroke-width:8;}
+.piggy-ring-fill{fill:none;stroke:#30D158;stroke-width:8;stroke-linecap:round;
+  stroke-dasharray:283;stroke-dashoffset:283;transition:stroke-dashoffset .3s ease;}
+.piggy-ring-emoji{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:32px;}
+.piggy-progress-label{font-size:15px;font-weight:600;color:#fff;}
+.piggy-progress-sub{font-size:12px;color:rgba(255,255,255,0.5);}
 
 /* History */
 .history{flex:1;overflow-y:scroll;-webkit-overflow-scrolling:touch;padding:0 14px 120px;min-height:0;}
@@ -994,6 +1010,47 @@ function monthBalance(accId) {
   return Math.round(bal * 100) / 100;
 }
 
+// Compute net for a specific month/year for an account
+function netForMonth(accId, m, y) {
+  let bal = 0;
+  state.transactions.forEach(tx => {
+    if (tx._piggySnapshot) return;
+    const d = new Date(tx.date);
+    if (d.getMonth() !== m || d.getFullYear() !== y) return;
+    if (tx.type === 'income'   && tx.acc === accId) bal += tx.amount;
+    if (tx.type === 'expense'  && tx.acc === accId) bal -= tx.amount;
+    if (tx.type === 'transfer' && tx.fromAcc === accId) bal -= tx.amount;
+    if (tx.type === 'transfer' && tx.toAcc   === accId) bal += tx.amount;
+  });
+  return Math.round(bal * 100) / 100;
+}
+
+// Get carried-over balance into the current selected month for an account
+// Walks back through all previous months and accumulates carry
+function getCarryIntoMonth(accId, toMonth, toYear) {
+  const acc = getAcc(accId);
+  if (!acc || !acc.carry?.enabled) return 0;
+
+  // Find earliest transaction date for this account
+  const accTxs = state.transactions.filter(tx =>
+    !tx._piggySnapshot && (tx.acc === accId || tx.fromAcc === accId || tx.toAcc === accId)
+  );
+  if (accTxs.length === 0) return 0;
+
+  const firstDate = accTxs.map(tx => new Date(tx.date)).sort((a,b) => a-b)[0];
+  let carry = 0;
+  let d = new Date(firstDate.getFullYear(), firstDate.getMonth(), 1);
+  const target = new Date(toYear, toMonth, 1);
+
+  while (d < target) {
+    const net = netForMonth(accId, d.getMonth(), d.getFullYear());
+    carry += net; // accumulate: each month's remainder rolls into next
+    d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+  }
+
+  return Math.round(carry * 100) / 100;
+}
+
 function totalBalance() {
   if (state.selAcc) {
     // Show net result for the selected month: income - expense
@@ -1065,9 +1122,16 @@ function render() {
       const sign = bal > 0 ? '+' : '';
       balEl.textContent = sign + fmt(bal, sym);
       balEl.style.color = bal >= 0 ? '#57D990' : '#FF8A80';
-      // Under circle: month balance (opening of month + this month's net)
+      // Under circle: include carry from previous months if enabled
       const mBal = monthBalance(acc.id);
-      document.getElementById('balance-label').textContent = 'итого за месяц: ' + fmt(mBal, sym);
+      const carry = getCarryIntoMonth(acc.id, state.month, state.year);
+      const total = Math.round((mBal + carry) * 100) / 100;
+      if (carry !== 0) {
+        document.getElementById('balance-label').textContent =
+          'итого за месяц: ' + fmt(total, sym) + ' (перенос: ' + fmt(carry, sym) + ')';
+      } else {
+        document.getElementById('balance-label').textContent = 'итого за месяц: ' + fmt(mBal, sym);
+      }
     }
   } else {
     balEl.textContent = fmt(bal, sym);
@@ -1126,8 +1190,10 @@ function renderAccBar() {
       displayColor = '#FF9F0A';
     } else {
       const mBal   = monthBalance(a.id);
-      displayBal   = (mBal > 0 ? '+' : '') + fmt(mBal, a.currency);
-      displayColor = mBal >= 0 ? '#57D990' : '#FF8A80';
+      const carry  = getCarryIntoMonth(a.id, state.month, state.year);
+      const total  = Math.round((mBal + carry) * 100) / 100;
+      displayBal   = (total > 0 ? '+' : '') + fmt(total, a.currency);
+      displayColor = total >= 0 ? '#57D990' : '#FF8A80';
     }
 
     html += `<div class="acc-chip ${active?'active':''}" onclick="App.selectAcc('${a.id}')">
@@ -1844,6 +1910,72 @@ const App = {
     return state.transactions
       .filter(tx => tx._piggySnapshot && tx.acc === piggyAccId)
       .sort((a,b) => a.date.localeCompare(b.date));
+  },
+
+  // ═══ BACKFILL ALL HISTORY TO PIGGY ══════════════════════════════
+  async backfillPiggyHistory(sourceAccId) {
+    const acc = getAcc(sourceAccId);
+    if (!acc || !acc.piggy?.enabled || !acc.piggy?.targetAccId) return;
+
+    // Find earliest transaction date for this account
+    const accTxs = state.transactions.filter(tx =>
+      !tx._piggySnapshot && (tx.acc === sourceAccId || tx.fromAcc === sourceAccId || tx.toAcc === sourceAccId)
+    );
+    if (accTxs.length === 0) { UI.toast('Нет транзакций для заполнения'); return; }
+
+    const dates = accTxs.map(tx => tx.date).sort();
+    const firstDate = new Date(dates[0]);
+    const now = new Date();
+
+    // Build list of all months from first transaction to now
+    const months = [];
+    let d = new Date(firstDate.getFullYear(), firstDate.getMonth(), 1);
+    while (d <= now) {
+      months.push({ m: d.getMonth(), y: d.getFullYear() });
+      d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    }
+
+    const total = months.length;
+    const overlay = document.getElementById('piggy-progress-overlay');
+    const fillEl  = document.getElementById('piggy-ring-fill');
+    const labelEl = document.getElementById('piggy-progress-label');
+    const subEl   = document.getElementById('piggy-progress-sub');
+    const MONTHS_RU = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+    const CIRCUMFERENCE = 283;
+
+    overlay.classList.add('visible');
+    let added = 0;
+
+    for (let i = 0; i < months.length; i++) {
+      const { m, y } = months[i];
+
+      // Update UI
+      const pct = i / total;
+      fillEl.style.strokeDashoffset = CIRCUMFERENCE * (1 - pct);
+      labelEl.textContent = `${Math.round(pct * 100)}%`;
+      subEl.textContent = `${MONTHS_RU[m]} ${y} (${i + 1} из ${total})`;
+
+      // Yield to browser every 10 months so UI doesn't freeze
+      if (i % 10 === 0) await new Promise(r => setTimeout(r, 0));
+
+      this._autoPiggyForCurrentMonth(m, y);
+      added++;
+    }
+
+    // Final state
+    fillEl.style.strokeDashoffset = 0;
+    labelEl.textContent = '100%';
+    subEl.textContent = `Готово! Обработано ${total} месяцев`;
+
+    recalcBalances();
+    render();
+    persist();
+
+    setTimeout(() => {
+      overlay.classList.remove('visible');
+      UI.toast(`🐷 Заполнено ${total} месяцев`);
+      UI._refreshPiggyPreview(sourceAccId);
+    }, 800);
   },
 
   // ═══════════════════════════════════════════════════════════════
@@ -2954,9 +3086,12 @@ const UI = {
 
     if (snaps.length === 0) {
       preview.innerHTML = `
-        <div style="margin-top:4px;">
+        <div style="margin-top:4px;display:flex;flex-direction:column;gap:8px;">
           <button onclick="App.copyToPiggy('${sourceAccId}')" style="width:100%;padding:11px;background:linear-gradient(135deg,#1a3a28,#0d2e1a);border:1px solid rgba(48,209,88,0.3);border-radius:10px;color:#30D158;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">
             🐷 Скопировать остаток этого месяца
+          </button>
+          <button onclick="App.backfillPiggyHistory('${sourceAccId}')" style="width:100%;padding:11px;background:linear-gradient(135deg,#1a2a3a,#0d1a2e);border:1px solid rgba(91,141,239,0.3);border-radius:10px;color:#5B8DEF;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">
+            📅 Заполнить всю историю с 2024
           </button>
         </div>`;
       return;
@@ -2973,9 +3108,14 @@ const UI = {
           <span class="snap-amt">+${fmt(s.amount,cur)}</span>
         </div>`;
       }).join('')}
-      <button onclick="App.copyToPiggy('${sourceAccId}')" style="width:100%;margin-top:8px;padding:11px;background:linear-gradient(135deg,#1a3a28,#0d2e1a);border:1px solid rgba(48,209,88,0.3);border-radius:10px;color:#30D158;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">
-        🐷 Скопировать остаток этого месяца
-      </button>`;
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
+        <button onclick="App.copyToPiggy('${sourceAccId}')" style="width:100%;padding:11px;background:linear-gradient(135deg,#1a3a28,#0d2e1a);border:1px solid rgba(48,209,88,0.3);border-radius:10px;color:#30D158;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">
+          🐷 Скопировать остаток этого месяца
+        </button>
+        <button onclick="App.backfillPiggyHistory('${sourceAccId}')" style="width:100%;padding:11px;background:linear-gradient(135deg,#1a2a3a,#0d1a2e);border:1px solid rgba(91,141,239,0.3);border-radius:10px;color:#5B8DEF;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">
+          📅 Заполнить всю историю
+        </button>
+      </div>`;
   },
 
   // ─── Account type picker (new account sheet) ──────────────────
@@ -3194,10 +3334,22 @@ document.getElementById('as-investment').addEventListener('change', function() {
 
 // Service Worker
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js').catch(e => console.warn('SW:', e));
+  navigator.serviceWorker.register('./sw.js').catch(e => console.warn('SW:', e));
 }
 
 render();
 </script>
+<!-- Piggy backfill progress overlay -->
+<div id="piggy-progress-overlay">
+  <div class="piggy-ring">
+    <svg width="100" height="100" viewBox="0 0 100 100">
+      <circle class="piggy-ring-track" cx="50" cy="50" r="45"/>
+      <circle class="piggy-ring-fill" id="piggy-ring-fill" cx="50" cy="50" r="45"/>
+    </svg>
+    <div class="piggy-ring-emoji">🐷</div>
+  </div>
+  <div class="piggy-progress-label" id="piggy-progress-label">Заполняю копилку...</div>
+  <div class="piggy-progress-sub" id="piggy-progress-sub">Подготовка...</div>
+</div>
 </body>
 </html>
