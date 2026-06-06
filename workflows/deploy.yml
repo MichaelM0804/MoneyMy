@@ -1,0 +1,27 @@
+name: Deploy to GitHub Pages
+ 
+on:
+  push:
+    branches: [main]
+ 
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+ 
+      - name: Update SW cache version
+        run: |
+          VERSION="monefy-v$(date +%Y%m%d%H%M)"
+          sed -i "s/const CACHE = 'monefy-v[^']*'/const CACHE = '$VERSION'/" sw.js
+          echo "Cache version: $VERSION"
+ 
+      - name: Commit updated sw.js
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add sw.js
+          git diff --staged --quiet || git commit -m "🔄 Auto-update SW cache version"
+          git push
+ 
