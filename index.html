@@ -652,6 +652,7 @@ body{font-family:-apple-system,'SF Pro Text',system-ui,sans-serif;color:var(--t1
         </div>
         <div style="display:flex;flex-direction:column;gap:10px;margin-top:16px;">
           <button class="fbtn fbtn-red" onclick="App.clearAll()" data-i18n="clearAll">🗑 Очистить все данные</button>
+          <button class="fbtn" style="background:rgba(255,159,10,0.12);color:#FF9F0A;" onclick="App.resetPiggySnapshots()">🐷 Пересчитать копилку</button>
         </div>
         <div style="margin-top:20px;font-size:12px;color:var(--t3);text-align:center;">Monefy v1.0 • <span id="storage-mode-label" data-i18n="storedLocally">Данные хранятся на устройстве</span></div>
       </div>
@@ -1966,6 +1967,25 @@ const App = {
     const a    = document.createElement('a');
     a.href = url; a.download = filename; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
+
+  resetPiggySnapshots() {
+    UI.openConfirm(
+      '🐷 Пересчитать копилку',
+      'Удалить все снимки копилки и пересчитать заново с правильными датами?',
+      [{ label: '🔄 Пересчитать', color: '#FF9F0A', action: () => {
+        // Remove all piggy snapshots
+        state.transactions = state.transactions.filter(tx => !tx._piggySnapshot);
+        persist();
+        UI.closeSheet('confirm-sheet');
+        UI.closeSheet('menu-sheet');
+        // Recalculate all
+        this._autoPiggyAllPastMonths();
+        recalcBalances();
+        render();
+        UI.toast('🐷 Копилка пересчитана');
+      }}]
+    );
   },
 
   clearAll() {
@@ -3735,6 +3755,23 @@ if ('serviceWorker' in navigator) {
 render();
 Gist.init();
 I18n.apply();
+
+// Migrate old piggy snapshots: fix dates from end-of-month to first day of next month
+(function migrateSnapshotDates() {
+  let changed = false;
+  state.transactions.forEach(tx => {
+    if (!tx._piggySnapshot || tx._snapshotMonth === undefined) return;
+    const m = tx._snapshotMonth;
+    const y = tx._snapshotYear;
+    const correctDate = new Date(y, m + 1, 1).toISOString().slice(0, 10);
+    if (tx.date !== correctDate) {
+      tx.date = correctDate;
+      changed = true;
+    }
+  });
+  if (changed) { persist(); }
+})();
+
 piggyRecalc();
 </script>
 <!-- Piggy backfill progress overlay -->
