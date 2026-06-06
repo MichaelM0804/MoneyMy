@@ -1,4 +1,4 @@
-const CACHE = 'monefy-v18';
+const CACHE = 'monefy-v20';
 const ASSETS = ['/', '/index.html', '/manifest.json'];
 
 self.addEventListener('install', e => {
