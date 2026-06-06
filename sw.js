@@ -1,4 +1,4 @@
-const CACHE = 'monefy-v20';
+const CACHE = 'monefy-v20250606';  // обновляется при деплое — меняйте дату
 const BASE = self.location.pathname.replace('/sw.js', '');
 const ASSETS = [
   BASE + '/',
@@ -21,9 +21,28 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  e.respondWith(
-    caches.match(e.request).then(cached =>
-      cached || fetch(e.request).catch(() => caches.match(BASE + '/index.html'))
-    )
-  );
+  const url = new URL(e.request.url);
+  const isNav = e.request.mode === 'navigate' ||
+    url.pathname === BASE + '/' ||
+    url.pathname === BASE + '/index.html';
+
+  if (isNav) {
+    // Network-first для index.html — телефон всегда получает свежую версию
+    e.respondWith(
+      fetch(e.request)
+        .then(res => {
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clone));
+          return res;
+        })
+        .catch(() => caches.match(BASE + '/index.html'))
+    );
+  } else {
+    // Cache-first для остальных файлов
+    e.respondWith(
+      caches.match(e.request).then(cached =>
+        cached || fetch(e.request).catch(() => caches.match(BASE + '/index.html'))
+      )
+    );
+  }
 });

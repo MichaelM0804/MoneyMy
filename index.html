@@ -263,9 +263,9 @@ body{font-family:-apple-system,'SF Pro Text',system-ui,sans-serif;color:var(--t1
         </div>
       </div>
       <div class="summary-row">
-        <div class="sum-item"><div class="sum-val sum-income" id="s-income">₪0</div><div class="sum-lbl">Доходы</div></div>
-        <div class="sum-item"><div class="sum-val sum-expense" id="s-expense">₪0</div><div class="sum-lbl">Расходы</div></div>
-        <div class="sum-item"><div class="sum-val sum-transfer" id="s-transfer">₪0</div><div class="sum-lbl">Переводы</div></div>
+        <div class="sum-item"><div class="sum-val sum-income" id="s-income">₪0</div><div class="sum-lbl" data-i18n="income">Доходы</div></div>
+        <div class="sum-item"><div class="sum-val sum-expense" id="s-expense">₪0</div><div class="sum-lbl" data-i18n="expense">Расходы</div></div>
+        <div class="sum-item"><div class="sum-val sum-transfer" id="s-transfer">₪0</div><div class="sum-lbl" data-i18n="transfers">Переводы</div></div>
       </div>
       <div class="budget-wrap" id="budget-wrap" style="display:none">
         <div class="budget-track"><div class="budget-fill" id="budget-fill" style="width:0%"></div></div>
@@ -610,27 +610,64 @@ body{font-family:-apple-system,'SF Pro Text',system-ui,sans-serif;color:var(--t1
   <div class="overlay" id="menu-sheet" onclick="UI.overlayClick(event,'menu-sheet')">
     <div class="sheet">
       <div class="sheet-handle"></div>
-      <div class="sheet-title">Меню</div>
+      <div class="sheet-title" data-i18n="menu">Меню</div>
       <div class="sheet-body">
-        <div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;">Категории</div>
-        <button class="fbtn fbtn-green" style="width:100%;" onclick="UI.openCatManager()">✏️ Управление категориями</button>
-        <button class="fbtn" style="width:100%;margin-top:10px;background:var(--card2);color:var(--t1);" onclick="UI.openReorder()">↕️ Порядок счетов</button>
+        <!-- Language switcher -->
+        <div style="display:flex;gap:6px;margin-bottom:16px;">
+          <button onclick="I18n.set('ru')" id="lang-ru" style="flex:1;padding:8px;border-radius:10px;border:1.5px solid rgba(255,255,255,0.15);background:var(--card2);color:var(--t1);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">🇷🇺 Рус</button>
+          <button onclick="I18n.set('en')" id="lang-en" style="flex:1;padding:8px;border-radius:10px;border:1.5px solid rgba(255,255,255,0.15);background:var(--card2);color:var(--t1);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">🇬🇧 Eng</button>
+          <button onclick="I18n.set('he')" id="lang-he" style="flex:1;padding:8px;border-radius:10px;border:1.5px solid rgba(255,255,255,0.15);background:var(--card2);color:var(--t1);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">🇮🇱 עב</button>
+        </div>
+        <div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;" data-i18n="categories">Категории</div>
+        <button class="fbtn fbtn-green" style="width:100%;" onclick="UI.openCatManager()" data-i18n="manageCats">✏️ Управление категориями</button>
+        <button class="fbtn" style="width:100%;margin-top:10px;background:var(--card2);color:var(--t1);" onclick="UI.openReorder()" data-i18n="reorderAccs">↕️ Порядок счетов</button>
 
-        <div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin:18px 0 8px;">Умный импорт</div>
-        <button class="fbtn" style="width:100%;background:linear-gradient(135deg,#1a3a5c,#1a4a2e);color:#64CFFF;border:1px solid rgba(100,207,255,0.2);" onclick="UI.openSmartImport()">🧠 Импорт выписки банка / фонда</button>
-        <div style="font-size:12px;color:var(--t3);margin-top:6px;line-height:1.5;">Автоматически распознаёт форматы: IBI, Migdal, Harel, Meitav, Interactive Brokers, Bank Hapoalim, Leumi и другие</div>
+        <div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin:18px 0 8px;" data-i18n="smartImport">Умный импорт</div>
+        <button class="fbtn" style="width:100%;background:linear-gradient(135deg,#1a3a5c,#1a4a2e);color:#64CFFF;border:1px solid rgba(100,207,255,0.2);" onclick="UI.openSmartImport()" data-i18n="smartImportBtn">🧠 Импорт выписки банка / фонда</button>
+        <div style="font-size:12px;color:var(--t3);margin-top:6px;line-height:1.5;" data-i18n="smartImportDesc">Автоматически распознаёт форматы: IBI, Migdal, Harel, Meitav, Interactive Brokers, Bank Hapoalim, Leumi и другие</div>
 
-        <div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin:18px 0 8px;">Экспорт и импорт</div>
+        <div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin:18px 0 8px;" data-i18n="cloudSection">☁️ Облако (GitHub Gist)</div>
+        <div id="gist-status-bar" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px;color:var(--t2);"></div>
+        <div style="display:flex;gap:8px;">
+          <button class="fbtn" style="flex:1;background:rgba(48,209,88,0.1);color:#30D158;border:1px solid rgba(48,209,88,0.2);" onclick="Gist.save()" data-i18n="cloudSave">☁️ Сохранить</button>
+          <button class="fbtn" style="flex:1;background:rgba(91,141,239,0.1);color:#5B8DEF;border:1px solid rgba(91,141,239,0.2);" onclick="Gist.load()" data-i18n="cloudLoad">⬇️ Загрузить</button>
+          <button class="fbtn" style="flex:1;background:var(--card2);color:var(--t2);" onclick="UI.openGistSettings()">⚙️</button>
+        </div>
+
+        <div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin:18px 0 8px;" data-i18n="exportImport">Экспорт и импорт</div>
         <div style="display:flex;flex-direction:column;gap:10px;">
-          <button class="fbtn" style="background:var(--card2);color:var(--t1);" onclick="App.exportCSV()">📊 Экспорт транзакций (CSV)</button>
-          <button class="fbtn" style="background:var(--card2);color:var(--t1);" onclick="App.exportData()">📦 Экспорт всего (JSON)</button>
-          <button class="fbtn" style="background:rgba(0,132,255,0.12);color:#64AFFF;" onclick="document.getElementById('csv-import-input').click()">📥 Импорт CSV (стандартный)</button>
-          <button class="fbtn" style="background:rgba(0,132,255,0.12);color:#64AFFF;" onclick="document.getElementById('json-import-input').click()">📂 Восстановить из JSON</button>
+          <button class="fbtn" style="background:var(--card2);color:var(--t1);" onclick="App.exportCSV()" data-i18n="exportCSV">📊 Экспорт транзакций (CSV)</button>
+          <button class="fbtn" style="background:var(--card2);color:var(--t1);" onclick="App.exportData()" data-i18n="exportJSON">📦 Экспорт всего (JSON)</button>
+          <button class="fbtn" style="background:rgba(0,132,255,0.12);color:#64AFFF;" onclick="document.getElementById('csv-import-input').click()" data-i18n="importCSV">📥 Импорт CSV (стандартный)</button>
+          <button class="fbtn" style="background:rgba(0,132,255,0.12);color:#64AFFF;" onclick="document.getElementById('json-import-input').click()" data-i18n="importJSON">📂 Восстановить из JSON</button>
         </div>
         <div style="display:flex;flex-direction:column;gap:10px;margin-top:16px;">
-          <button class="fbtn fbtn-red" onclick="App.clearAll()">🗑 Очистить все данные</button>
+          <button class="fbtn fbtn-red" onclick="App.clearAll()" data-i18n="clearAll">🗑 Очистить все данные</button>
         </div>
-        <div style="margin-top:20px;font-size:12px;color:var(--t3);text-align:center;">Monefy v1.0 • Данные хранятся на устройстве</div>
+        <div style="margin-top:20px;font-size:12px;color:var(--t3);text-align:center;">Monefy v1.0 • <span id="storage-mode-label" data-i18n="storedLocally">Данные хранятся на устройстве</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GIST SETTINGS SHEET -->
+  <div class="overlay" id="gist-sheet" onclick="UI.overlayClick(event,'gist-sheet')">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-title">☁️ Настройки GitHub Gist</div>
+      <div class="sheet-body">
+        <div class="info-box" style="margin-bottom:16px;"><span>🔑</span><span>Токен хранится только на вашем устройстве и никуда не передаётся кроме GitHub.</span></div>
+        <label class="flabel">GitHub Personal Access Token</label>
+        <input class="finput" id="gist-token-input" type="password" placeholder="ghp_xxxxxxxxxxxx" autocomplete="off">
+        <div style="font-size:11px;color:var(--t3);margin-top:4px;">Создайте на github.com/settings/tokens с правом <b style="color:var(--t2)">gist</b></div>
+
+        <label class="flabel" style="margin-top:14px;">Gist ID <span style="color:var(--t3);font-weight:400;">(заполнится автоматически)</span></label>
+        <input class="finput" id="gist-id-input" placeholder="Оставьте пустым для создания нового">
+
+        <div style="display:flex;gap:8px;margin-top:16px;">
+          <button class="fbtn fbtn-green" style="flex:1;" onclick="Gist.saveSettings()">✓ Сохранить</button>
+          <button class="fbtn" style="flex:1;background:var(--card2);color:var(--t2);" onclick="UI.closeSheet('gist-sheet')">Отмена</button>
+        </div>
+        <button class="fbtn" style="width:100%;margin-top:10px;background:rgba(255,69,58,0.12);color:var(--red);" onclick="Gist.clearSettings()">🗑 Сбросить токен</button>
       </div>
     </div>
   </div>
@@ -1143,39 +1180,36 @@ function render() {
   const bal = totalBalance();
   const acc = selAccObj();
 
-  document.getElementById('topbar-title').textContent = acc ? acc.name : 'Все счета';
+  document.getElementById('topbar-title').textContent = acc ? acc.name : I18n.t('allAccounts');
   document.getElementById('month-label').textContent = MONTHS[state.month] + ' ' + state.year;
 
   const balEl = document.getElementById('balance-center');
   if (acc) {
     const isPiggy = acc.isPiggybank || acc.accType === 'piggybank';
     if (isPiggy) {
-      // Piggybank: show total accumulated balance in circle
       balEl.textContent = fmt(acc.balance, sym);
       balEl.style.color = '#FF9F0A';
       const mBal = monthBalance(acc.id);
       document.getElementById('balance-label').textContent =
-        mBal !== 0 ? 'этот месяц: ' + (mBal > 0 ? '+' : '') + fmt(mBal, sym) : 'накопленный баланс';
+        mBal !== 0 ? I18n.t('thisMonth') + ': ' + (mBal > 0 ? '+' : '') + fmt(mBal, sym) : I18n.t('accumulated');
     } else {
-      // Regular account: show month net in circle
       const sign = bal > 0 ? '+' : '';
       balEl.textContent = sign + fmt(bal, sym);
       balEl.style.color = bal >= 0 ? '#57D990' : '#FF8A80';
-      // Under circle: include carry from previous months if enabled
       const mBal = monthBalance(acc.id);
       const carry = getCarryIntoMonth(acc.id, state.month, state.year);
       const total = Math.round((mBal + carry) * 100) / 100;
       if (carry !== 0) {
         document.getElementById('balance-label').textContent =
-          'итого за месяц: ' + fmt(total, sym) + ' (перенос: ' + fmt(carry, sym) + ')';
+          I18n.t('monthTotal') + ': ' + fmt(total, sym) + ' (' + I18n.t('carry') + ': ' + fmt(carry, sym) + ')';
       } else {
-        document.getElementById('balance-label').textContent = 'итого за месяц: ' + fmt(mBal, sym);
+        document.getElementById('balance-label').textContent = I18n.t('monthTotal') + ': ' + fmt(mBal, sym);
       }
     }
   } else {
     balEl.textContent = fmt(bal, sym);
     balEl.style.color = '#fff';
-    document.getElementById('balance-label').textContent = 'общий баланс';
+    document.getElementById('balance-label').textContent = I18n.t('balance');
   }
 
   document.getElementById('s-income').textContent = fmt(income, sym);
@@ -1210,7 +1244,7 @@ function render() {
 
 function renderAccBar() {
   const bar = document.getElementById('acc-bar');
-  let html = `<div class="acc-chip all-chip ${!state.selAcc?'active':''}" onclick="App.selectAcc(null)"><span style="font-size:12px;font-weight:600;color:${!state.selAcc?'#fff':'#30D158'}">Все</span></div>`;
+  let html = `<div class="acc-chip all-chip ${!state.selAcc?'active':''}" onclick="App.selectAcc(null)"><span style="font-size:12px;font-weight:600;color:${!state.selAcc?'#fff':'#30D158'}">${I18n.t('all')}</span></div>`;
   state.accounts.forEach(a => {
     const active   = state.selAcc === a.id;
     const isPiggy  = a.isPiggybank || a.accType === 'piggybank';
@@ -1243,7 +1277,7 @@ function renderAccBar() {
       </div>
     </div>`;
   });
-  html += `<div class="acc-chip add-acc-chip" onclick="UI.openNewAcc()"><span>+ Счёт</span></div>`;
+  html += `<div class="acc-chip add-acc-chip" onclick="UI.openNewAcc()"><span>${I18n.t('addAccount')}</span></div>`;
   bar.innerHTML = html;
 }
 
@@ -3182,6 +3216,14 @@ const UI = {
     }
   },
 
+  // ─── Gist Settings ───────────────────────────────────────────
+  openGistSettings() {
+    this.closeSheet('menu-sheet');
+    document.getElementById('gist-token-input').value = Gist.getToken();
+    document.getElementById('gist-id-input').value = Gist.getGistId();
+    this.openSheet('gist-sheet');
+  },
+
   // ─── Smart Import UI ─────────────────────────────────────────
   openSmartImport() {
     this.closeSheet('menu-sheet');
@@ -3362,6 +3404,244 @@ const UI = {
 };
 
 // ═══════════════════════════════════════════════════════════════
+// GITHUB GIST SYNC
+// ═══════════════════════════════════════════════════════════════
+const Gist = {
+  getToken()  { return localStorage.getItem('monefy_gist_token') || ''; },
+  getGistId() { return localStorage.getItem('monefy_gist_id') || ''; },
+
+  updateStatusBar(text, color) {
+    const el = document.getElementById('gist-status-bar');
+    if (el) el.innerHTML = `<span style="color:${color||'var(--t2)'}">${text}</span>`;
+    const lbl = document.getElementById('storage-mode-label');
+    if (lbl) lbl.textContent = this.getToken() ? I18n.t('cloudConnected') : I18n.t('storedLocally');
+  },
+
+  async save(silent = false) {
+    const token = this.getToken();
+    if (!token) { if (!silent) { UI.toast('⚙️ Сначала укажите токен'); UI.openGistSettings(); } return; }
+    if (!silent) this.updateStatusBar('⏳ Сохранение...', '#FF9F0A');
+    const data = JSON.stringify({
+      accounts: state.accounts,
+      transactions: state.transactions,
+      catsE: state.catsE,
+      catsI: state.catsI,
+      savedAt: new Date().toISOString(),
+    });
+    const gistId = this.getGistId();
+    try {
+      let res, json;
+      if (gistId) {
+        res = await fetch(`https://api.github.com/gists/${gistId}`, {
+          method: 'PATCH',
+          headers: { Authorization: `token ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ files: { 'monefy-data.json': { content: data } } }),
+        });
+      } else {
+        res = await fetch('https://api.github.com/gists', {
+          method: 'POST',
+          headers: { Authorization: `token ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            description: 'MoneyMy — backup',
+            public: false,
+            files: { 'monefy-data.json': { content: data } },
+          }),
+        });
+      }
+      json = await res.json();
+      if (!res.ok) throw new Error(json.message || res.status);
+      if (!gistId) localStorage.setItem('monefy_gist_id', json.id);
+      const time = new Date().toLocaleTimeString('ru', {hour:'2-digit',minute:'2-digit'});
+      this.updateStatusBar(`✅ Авто: ${time}`, '#30D158');
+      if (!silent) UI.toast(I18n.t('savedGist'));
+    } catch(e) {
+      this.updateStatusBar('❌ Ошибка сохранения', '#FF453A');
+      if (!silent) UI.toast('Ошибка: ' + e.message);
+    }
+  },
+
+  async load() {
+    const token = this.getToken();
+    if (!token) { UI.toast('⚙️ Сначала укажите токен'); UI.openGistSettings(); return; }
+    const gistId = this.getGistId();
+    if (!gistId) { UI.toast('Нет сохранённого Gist — сначала сохраните'); return; }
+    this.updateStatusBar('⏳ Загрузка...', '#FF9F0A');
+    try {
+      const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+        headers: { Authorization: `token ${token}` },
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || res.status);
+      const raw = json.files['monefy-data.json']?.content;
+      if (!raw) throw new Error('Файл не найден в Gist');
+      const d = JSON.parse(raw);
+      state.accounts = d.accounts || state.accounts;
+      state.transactions = d.transactions || state.transactions;
+      state.catsE = d.catsE || state.catsE;
+      state.catsI = d.catsI || state.catsI;
+      persist();
+      render();
+      const time = new Date().toLocaleTimeString('ru', {hour:'2-digit',minute:'2-digit'});
+      this.updateStatusBar(`✅ Загружено в ${time}`, '#30D158');
+      UI.toast(I18n.t('loadedGist'));
+    } catch(e) {
+      this.updateStatusBar('❌ Ошибка загрузки', '#FF453A');
+      UI.toast('Ошибка: ' + e.message);
+    }
+  },
+
+  saveSettings() {
+    const token = document.getElementById('gist-token-input').value.trim();
+    const id    = document.getElementById('gist-id-input').value.trim();
+    if (!token) { UI.toast('Введите токен'); return; }
+    localStorage.setItem('monefy_gist_token', token);
+    if (id) localStorage.setItem('monefy_gist_id', id);
+    else localStorage.removeItem('monefy_gist_id');
+    this.updateStatusBar('✅ Токен сохранён', '#30D158');
+    this.startAutosave();
+    UI.closeSheet('gist-sheet');
+    UI.toast('✅ Токен сохранён — автосохранение каждые 5 мин');
+  },
+
+  clearSettings() {
+    localStorage.removeItem('monefy_gist_token');
+    localStorage.removeItem('monefy_gist_id');
+    this.updateStatusBar('', '');
+    UI.closeSheet('gist-sheet');
+    UI.toast('Токен удалён');
+  },
+
+  init() {
+    if (this.getToken()) {
+      this.updateStatusBar('☁️ Gist подключён', '#30D158');
+      this.startAutosave();
+    }
+  },
+
+  startAutosave() {
+    if (this._autosaveTimer) clearInterval(this._autosaveTimer);
+    this._autosaveTimer = setInterval(async () => {
+      if (!this.getToken()) return;
+      await this.save(true); // silent = true
+    }, 5 * 60 * 1000); // каждые 5 минут
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════
+// I18N — INTERNATIONALISATION
+// ═══════════════════════════════════════════════════════════════
+const TRANSLATIONS = {
+  ru: {
+    allAccounts:'Все счета', income:'Доходы', expense:'Расходы', transfers:'Переводы',
+    addIncome:'+ Доход', addExpense:'- Расход', addTransfer:'⇄ Перевод',
+    balance:'баланс', monthTotal:'итого за месяц', carry:'перенос',
+    accumulated:'накопленный баланс', thisMonth:'этот месяц',
+    menu:'Меню', categories:'Категории', manageCats:'✏️ Управление категориями',
+    reorderAccs:'↕️ Порядок счетов', smartImport:'Умный импорт',
+    smartImportBtn:'🧠 Импорт выписки банка / фонда',
+    smartImportDesc:'Автоматически распознаёт форматы: IBI, Migdal, Harel, Meitav, Interactive Brokers, Bank Hapoalim, Leumi и другие',
+    cloudSection:'☁️ Облако (GitHub Gist)', cloudSave:'☁️ Сохранить', cloudLoad:'⬇️ Загрузить',
+    exportImport:'Экспорт и импорт', exportCSV:'📊 Экспорт транзакций (CSV)',
+    exportJSON:'📦 Экспорт всего (JSON)', importCSV:'📥 Импорт CSV (стандартный)',
+    importJSON:'📂 Восстановить из JSON', clearAll:'🗑 Очистить все данные',
+    storedLocally:'Данные хранятся на устройстве', cloudConnected:'☁️ Синхронизация с GitHub Gist',
+    addAccount:'+ Счёт', all:'Все', noTransactions:'Нет транзакций',
+    txIncome:'Доход', txExpense:'Расход', txTransfer:'Перевод',
+    months:['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'],
+    save:'Сохранить', cancel:'Отмена', delete:'Удалить',
+    accSettings:'Настройки счёта', newAcc:'Новый счёт',
+    general:'Основное', budget:'Бюджет', carryTab:'Перенос',
+    catTitle:'Категории', newCat:'Новая категория', editCat:'Редактировать категорию',
+    reorder:'Порядок счетов',
+    gistTitle:'☁️ Настройки GitHub Gist',
+    piggyBtn:'🐷 Скопировать остаток этого месяца', piggyHistory:'📅 Заполнить всю историю',
+    piggySnapshots:'История снимков',
+    savedGist:'☁️ Данные сохранены в Gist', loadedGist:'☁️ Данные загружены из Gist',
+    dir:'ltr',
+  },
+  en: {
+    allAccounts:'All accounts', income:'Income', expense:'Expenses', transfers:'Transfers',
+    addIncome:'+ Income', addExpense:'- Expense', addTransfer:'⇄ Transfer',
+    balance:'balance', monthTotal:'month total', carry:'carried over',
+    accumulated:'accumulated balance', thisMonth:'this month',
+    menu:'Menu', categories:'Categories', manageCats:'✏️ Manage categories',
+    reorderAccs:'↕️ Account order', smartImport:'Smart import',
+    smartImportBtn:'🧠 Import bank / fund statement',
+    smartImportDesc:'Recognises: IBI, Migdal, Harel, Meitav, Interactive Brokers, Bank Hapoalim, Leumi and others',
+    cloudSection:'☁️ Cloud (GitHub Gist)', cloudSave:'☁️ Save', cloudLoad:'⬇️ Load',
+    exportImport:'Export & import', exportCSV:'📊 Export transactions (CSV)',
+    exportJSON:'📦 Export all (JSON)', importCSV:'📥 Import CSV',
+    importJSON:'📂 Restore from JSON', clearAll:'🗑 Clear all data',
+    storedLocally:'Data stored on device', cloudConnected:'☁️ Synced with GitHub Gist',
+    addAccount:'+ Account', all:'All', noTransactions:'No transactions',
+    txIncome:'Income', txExpense:'Expense', txTransfer:'Transfer',
+    months:['January','February','March','April','May','June','July','August','September','October','November','December'],
+    save:'Save', cancel:'Cancel', delete:'Delete',
+    accSettings:'Account settings', newAcc:'New account',
+    general:'General', budget:'Budget', carryTab:'Carry over',
+    catTitle:'Categories', newCat:'New category', editCat:'Edit category',
+    reorder:'Account order',
+    gistTitle:'☁️ GitHub Gist settings',
+    piggyBtn:'🐷 Copy this month\'s balance', piggyHistory:'📅 Fill all history',
+    piggySnapshots:'Snapshot history',
+    savedGist:'☁️ Data saved to Gist', loadedGist:'☁️ Data loaded from Gist',
+    dir:'ltr',
+  },
+  he: {
+    allAccounts:'כל החשבונות', income:'הכנסות', expense:'הוצאות', transfers:'העברות',
+    addIncome:'+ הכנסה', addExpense:'- הוצאה', addTransfer:'⇄ העברה',
+    balance:'יתרה', monthTotal:'סה״כ חודשי', carry:'העברה מחודש קודם',
+    accumulated:'יתרה מצטברת', thisMonth:'החודש',
+    menu:'תפריט', categories:'קטגוריות', manageCats:'✏️ ניהול קטגוריות',
+    reorderAccs:'↕️ סדר חשבונות', smartImport:'ייבוא חכם',
+    smartImportBtn:'🧠 ייבוא דף חשבון / קרן',
+    smartImportDesc:'מזהה: IBI, מגדל, הראל, מיטב, Interactive Brokers, הפועלים, לאומי ועוד',
+    cloudSection:'☁️ ענן (GitHub Gist)', cloudSave:'☁️ שמור', cloudLoad:'⬇️ טען',
+    exportImport:'ייצוא וייבוא', exportCSV:'📊 ייצוא עסקאות (CSV)',
+    exportJSON:'📦 ייצוא הכל (JSON)', importCSV:'📥 ייבוא CSV',
+    importJSON:'📂 שחזור מ-JSON', clearAll:'🗑 מחק את כל הנתונים',
+    storedLocally:'הנתונים שמורים במכשיר', cloudConnected:'☁️ מסונכרן עם GitHub Gist',
+    addAccount:'+ חשבון', all:'הכל', noTransactions:'אין עסקאות',
+    txIncome:'הכנסה', txExpense:'הוצאה', txTransfer:'העברה',
+    months:['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'],
+    save:'שמור', cancel:'ביטול', delete:'מחק',
+    accSettings:'הגדרות חשבון', newAcc:'חשבון חדש',
+    general:'כללי', budget:'תקציב', carryTab:'העברת יתרה',
+    catTitle:'קטגוריות', newCat:'קטגוריה חדשה', editCat:'עריכת קטגוריה',
+    reorder:'סדר חשבונות',
+    gistTitle:'☁️ הגדרות GitHub Gist',
+    piggyBtn:'🐷 העתק יתרת החודש', piggyHistory:'📅 מלא את כל ההיסטוריה',
+    piggySnapshots:'היסטוריית תמונות',
+    savedGist:'☁️ הנתונים נשמרו ב-Gist', loadedGist:'☁️ הנתונים נטענו מ-Gist',
+    dir:'rtl',
+  },
+};
+
+const I18n = {
+  lang: localStorage.getItem('monefy_lang') || 'ru',
+  t(key) { return TRANSLATIONS[this.lang][key] || TRANSLATIONS.ru[key] || key; },
+  set(lang) {
+    this.lang = lang;
+    localStorage.setItem('monefy_lang', lang);
+    this.apply();
+    render();
+  },
+  apply() {
+    const t = TRANSLATIONS[this.lang];
+    document.documentElement.dir = t.dir || 'ltr';
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.getAttribute('data-i18n');
+      if (t[key] !== undefined) el.textContent = t[key];
+    });
+    ['ru','en','he'].forEach(l => {
+      const btn = document.getElementById('lang-' + l);
+      if (btn) btn.style.borderColor = l === this.lang ? 'var(--green-accent)' : 'rgba(255,255,255,0.15)';
+    });
+    // Sync months array used by render
+    MONTHS.splice(0, 12, ...t.months);
+  },
+};
+
 // CLOCK & INIT
 // ═══════════════════════════════════════════════════════════════
 
@@ -3384,6 +3664,8 @@ if ('serviceWorker' in navigator) {
 }
 
 render();
+Gist.init();
+I18n.apply();
 </script>
 <!-- Piggy backfill progress overlay -->
 <div id="piggy-progress-overlay">
