@@ -1097,19 +1097,7 @@ function recalcBalances() {
   });
 }
 
-// Piggybank balance up to end of selected month (накопленный баланс на конец месяца)
-function piggyBalanceUpToMonth(accId, toMonth, toYear) {
-  // Include all transactions up to and including the last day of toMonth/toYear
-  const cutoff = localDate(new Date(toYear, toMonth + 1, 0)); // last day of month
-  let bal = 0;
-  state.transactions.forEach(tx => {
-    if (tx.acc !== accId) return;
-    if (tx.date > cutoff) return;
-    if (tx.type === 'income')  bal += tx.amount;
-    if (tx.type === 'expense') bal -= tx.amount;
-  });
-  return Math.round(bal * 100) / 100;
-}
+// Balance for selected account for the CURRENT SELECTED MONTH only
 function monthBalance(accId) {
   const txs = state.transactions.filter(tx => {
     const d = new Date(tx.date);
@@ -1248,8 +1236,7 @@ function render() {
   if (acc) {
     const isPiggy = acc.isPiggybank || acc.accType === 'piggybank';
     if (isPiggy) {
-      const piggyBal = piggyBalanceUpToMonth(acc.id, state.month, state.year);
-      balEl.textContent = fmt(piggyBal, sym);
+      balEl.textContent = fmt(acc.balance, sym);
       balEl.style.color = '#FF9F0A';
       const mBal = monthBalance(acc.id);
       document.getElementById('balance-label').textContent =
@@ -1321,8 +1308,7 @@ function renderAccBar() {
     // Regular/Investment → show THIS MONTH's balance (net)
     let displayBal, displayColor;
     if (isPiggy) {
-      const piggyBal = piggyBalanceUpToMonth(a.id, state.month, state.year);
-      displayBal   = fmt(piggyBal, a.currency);
+      displayBal   = fmt(a.balance, a.currency);
       displayColor = '#FF9F0A';
     } else {
       const mBal   = monthBalance(a.id);
@@ -1499,15 +1485,13 @@ const App = {
           tx._snapshotMonth === m && tx._snapshotYear === y)
       );
 
-      if (monthNet === 0) return; // nothing to copy
+      if (monthNet <= 0) return; // nothing to copy
 
-      // Add fresh snapshot — income if positive, expense if negative
+      // Add fresh snapshot
       state.transactions.push({
-        type: monthNet > 0 ? 'income' : 'expense',
-        cat:  monthNet > 0
-          ? this._findOrCreateCat('🐷 Остаток месяца', 'income')
-          : this._findOrCreateCat('🐷 Убыток месяца', 'expense'),
-        acc:  tgt.id, amount: Math.abs(monthNet), note,
+        type: 'income',
+        cat:  this._findOrCreateCat('🐷 Остаток месяца', 'income'),
+        acc:  tgt.id, amount: monthNet, note,
         date: snapshotDate,
         _piggySnapshot: true, _sourceAccId: acc.id,
         _snapshotMonth: m, _snapshotYear: y,
@@ -3809,6 +3793,24 @@ if ('serviceWorker' in navigator) {
 render();
 Gist.init();
 I18n.apply();
+
+// Fix piggybank accounts that are missing isPiggybank/accType flags (legacy data)
+(function migratePiggyAccounts() {
+  let changed = false;
+  state.accounts.forEach(acc => {
+    // Detect piggybank by: being target of any piggy snapshot, or icon/name hints
+    const isTarget = state.transactions.some(tx => tx._piggySnapshot && tx.acc === acc.id);
+    const hasHint  = acc.icon === '🐷' || (acc.name && acc.name.toLowerCase().includes('копилк'));
+    if (isTarget || hasHint) {
+      if (!acc.isPiggybank || acc.accType !== 'piggybank') {
+        acc.isPiggybank = true;
+        acc.accType = 'piggybank';
+        changed = true;
+      }
+    }
+  });
+  if (changed) persist();
+})();
 
 // Migrate old piggy snapshots: fix dates from end-of-month to first day of next month
 (function migrateSnapshotDates() {
