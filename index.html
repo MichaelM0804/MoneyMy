@@ -1097,7 +1097,19 @@ function recalcBalances() {
   });
 }
 
-// Balance for selected account for the CURRENT SELECTED MONTH only
+// Piggybank balance up to end of selected month (накопленный баланс на конец месяца)
+function piggyBalanceUpToMonth(accId, toMonth, toYear) {
+  // Include all transactions up to and including the last day of toMonth/toYear
+  const cutoff = localDate(new Date(toYear, toMonth + 1, 0)); // last day of month
+  let bal = 0;
+  state.transactions.forEach(tx => {
+    if (tx.acc !== accId) return;
+    if (tx.date > cutoff) return;
+    if (tx.type === 'income')  bal += tx.amount;
+    if (tx.type === 'expense') bal -= tx.amount;
+  });
+  return Math.round(bal * 100) / 100;
+}
 function monthBalance(accId) {
   const txs = state.transactions.filter(tx => {
     const d = new Date(tx.date);
@@ -1236,7 +1248,8 @@ function render() {
   if (acc) {
     const isPiggy = acc.isPiggybank || acc.accType === 'piggybank';
     if (isPiggy) {
-      balEl.textContent = fmt(acc.balance, sym);
+      const piggyBal = piggyBalanceUpToMonth(acc.id, state.month, state.year);
+      balEl.textContent = fmt(piggyBal, sym);
       balEl.style.color = '#FF9F0A';
       const mBal = monthBalance(acc.id);
       document.getElementById('balance-label').textContent =
@@ -1308,7 +1321,8 @@ function renderAccBar() {
     // Regular/Investment → show THIS MONTH's balance (net)
     let displayBal, displayColor;
     if (isPiggy) {
-      displayBal   = fmt(a.balance, a.currency);
+      const piggyBal = piggyBalanceUpToMonth(a.id, state.month, state.year);
+      displayBal   = fmt(piggyBal, a.currency);
       displayColor = '#FF9F0A';
     } else {
       const mBal   = monthBalance(a.id);
@@ -1485,13 +1499,15 @@ const App = {
           tx._snapshotMonth === m && tx._snapshotYear === y)
       );
 
-      if (monthNet <= 0) return; // nothing to copy
+      if (monthNet === 0) return; // nothing to copy
 
-      // Add fresh snapshot
+      // Add fresh snapshot — income if positive, expense if negative
       state.transactions.push({
-        type: 'income',
-        cat:  this._findOrCreateCat('🐷 Остаток месяца', 'income'),
-        acc:  tgt.id, amount: monthNet, note,
+        type: monthNet > 0 ? 'income' : 'expense',
+        cat:  monthNet > 0
+          ? this._findOrCreateCat('🐷 Остаток месяца', 'income')
+          : this._findOrCreateCat('🐷 Убыток месяца', 'expense'),
+        acc:  tgt.id, amount: Math.abs(monthNet), note,
         date: snapshotDate,
         _piggySnapshot: true, _sourceAccId: acc.id,
         _snapshotMonth: m, _snapshotYear: y,
