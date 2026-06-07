@@ -1500,31 +1500,68 @@ const App = {
   },
 
   // Run piggy for ALL past months (not current) whenever data changes
-  _autoPiggyAllPastMonths() {
+  async _autoPiggyAllPastMonths() {
     const now = new Date();
     const curM = now.getMonth();
     const curY = now.getFullYear();
+    const MONTHS_RU = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+    const CIRCUMFERENCE = 283;
 
+    // Collect all months to process across all piggy accounts
+    const monthsToProcess = [];
     state.accounts.forEach(acc => {
       if (!acc.piggy?.enabled || !acc.piggy?.targetAccId) return;
-
-      // Find earliest transaction for this account
       const accTxs = state.transactions.filter(tx =>
         !tx._piggySnapshot &&
         (tx.acc === acc.id || tx.fromAcc === acc.id || tx.toAcc === acc.id)
       );
       if (!accTxs.length) return;
-
       const firstDate = accTxs.map(tx => new Date(tx.date)).sort((a,b) => a-b)[0];
       let d = new Date(firstDate.getFullYear(), firstDate.getMonth(), 1);
-
-      // Process all months UP TO (not including) current month
       while (d.getFullYear() < curY || (d.getFullYear() === curY && d.getMonth() < curM)) {
-        this._autoPiggyForCurrentMonth(d.getMonth(), d.getFullYear());
+        monthsToProcess.push({ m: d.getMonth(), y: d.getFullYear(), acc });
         d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
       }
     });
+
+    if (monthsToProcess.length === 0) { persist(); return; }
+
+    // Show progress overlay
+    const overlay  = document.getElementById('piggy-progress-overlay');
+    const fillEl   = document.getElementById('piggy-ring-fill');
+    const labelEl  = document.getElementById('piggy-progress-label');
+    const subEl    = document.getElementById('piggy-progress-sub');
+    const total    = monthsToProcess.length;
+
+    if (overlay) overlay.classList.add('visible');
+
+    for (let i = 0; i < monthsToProcess.length; i++) {
+      const { m, y } = monthsToProcess[i];
+
+      // Update progress UI
+      const pct = i / total;
+      if (fillEl)  fillEl.style.strokeDashoffset = CIRCUMFERENCE * (1 - pct);
+      if (labelEl) labelEl.textContent = Math.round(pct * 100) + '%';
+      if (subEl)   subEl.textContent   = `${MONTHS_RU[m]} ${y} • ${i + 1} из ${total}`;
+
+      // Yield to browser every 5 months so UI updates
+      if (i % 5 === 0) await new Promise(r => setTimeout(r, 0));
+
+      this._autoPiggyForCurrentMonth(m, y);
+    }
+
+    // Complete
+    if (fillEl)  fillEl.style.strokeDashoffset = 0;
+    if (labelEl) labelEl.textContent = '100%';
+    if (subEl)   subEl.textContent   = `Готово! Обработано ${total} месяцев`;
+
     persist();
+    recalcBalances();
+    render();
+
+    setTimeout(() => {
+      if (overlay) overlay.classList.remove('visible');
+    }, 1000);
   },
 
   _findOrCreateCat(name, type) {
@@ -3266,9 +3303,6 @@ const UI = {
           <button onclick="App.copyToPiggy('${sourceAccId}')" style="width:100%;padding:11px;background:linear-gradient(135deg,#1a3a28,#0d2e1a);border:1px solid rgba(48,209,88,0.3);border-radius:10px;color:#30D158;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">
             🐷 Скопировать остаток этого месяца
           </button>
-          <button onclick="App.backfillPiggyHistory('${sourceAccId}')" style="width:100%;padding:11px;background:linear-gradient(135deg,#1a2a3a,#0d1a2e);border:1px solid rgba(91,141,239,0.3);border-radius:10px;color:#5B8DEF;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">
-            📅 Заполнить всю историю с 2024
-          </button>
         </div>`;
       return;
     }
@@ -3287,9 +3321,6 @@ const UI = {
       <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
         <button onclick="App.copyToPiggy('${sourceAccId}')" style="width:100%;padding:11px;background:linear-gradient(135deg,#1a3a28,#0d2e1a);border:1px solid rgba(48,209,88,0.3);border-radius:10px;color:#30D158;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">
           🐷 Скопировать остаток этого месяца
-        </button>
-        <button onclick="App.backfillPiggyHistory('${sourceAccId}')" style="width:100%;padding:11px;background:linear-gradient(135deg,#1a2a3a,#0d1a2e);border:1px solid rgba(91,141,239,0.3);border-radius:10px;color:#5B8DEF;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">
-          📅 Заполнить всю историю
         </button>
       </div>`;
   },
