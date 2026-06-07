@@ -1051,7 +1051,14 @@ const selAccObj = () => state.selAcc ? getAcc(state.selAcc) : null;
 const currency = () => { const a = selAccObj(); return a ? a.currency : '₪'; };
 const allCats = () => [...state.catsE, ...state.catsI];
 const getCat = id => allCats().find(c => c.id === id);
-const today = () => new Date().toISOString().slice(0, 10);
+// Format date as YYYY-MM-DD in LOCAL timezone (avoids UTC offset issues)
+function localDate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+const today = () => localDate(new Date());
 
 function getMonthTx() {
   return state.transactions.filter(tx => {
@@ -1456,9 +1463,9 @@ const App = {
       if (!tgt) return;
 
       const note = `🐷 Остаток ${MONTHS_RU[m]} ${y} (${acc.name})`;
-      const endDate     = new Date(y, m + 1, 0).toISOString().slice(0, 10); // последний день месяца (для расчёта)
-      const startDate   = new Date(y, m, 1).toISOString().slice(0, 10);
-      const snapshotDate = new Date(y, m + 1, 1).toISOString().slice(0, 10); // 1-е следующего месяца (дата в копилке)
+      const endDate      = localDate(new Date(y, m + 1, 0)); // последний день месяца
+      const startDate    = localDate(new Date(y, m, 1));
+      const snapshotDate = localDate(new Date(y, m + 1, 1)); // 1-е следующего месяца
 
       // Compute month net
       let monthNet = 0;
@@ -1473,21 +1480,10 @@ const App = {
       monthNet = Math.round(monthNet * 100) / 100;
 
       // Remove existing snapshot for this month to recalculate
-      // Also catches old snapshots that don't have _snapshotMonth/_snapshotYear fields
-      state.transactions = state.transactions.filter(tx => {
-        if (!tx._piggySnapshot || tx._sourceAccId !== acc.id) return true;
-        // Match by fields if available
-        if (tx._snapshotMonth !== undefined && tx._snapshotYear !== undefined) {
-          return !(tx._snapshotMonth === m && tx._snapshotYear === y);
-        }
-        // Fallback: match by note or by date range (old snapshots)
-        if (tx.note === note) return false;
-        const txDate = new Date(tx.date);
-        if (txDate.getFullYear() === y && txDate.getMonth() === m) return false;
-        // Also catch if date is first of next month (new format) for same period
-        if (txDate.getFullYear() === y && txDate.getMonth() === m + 1 && txDate.getDate() === 1) return false;
-        return true;
-      });
+      state.transactions = state.transactions.filter(tx =>
+        !(tx._piggySnapshot && tx._sourceAccId === acc.id &&
+          tx._snapshotMonth === m && tx._snapshotYear === y)
+      );
 
       if (monthNet <= 0) return; // nothing to copy
 
@@ -1985,14 +1981,12 @@ const App = {
       '🐷 Пересчитать копилку',
       'Удалить все снимки копилки и пересчитать заново с правильными датами?',
       [{ label: '🔄 Пересчитать', color: '#FF9F0A', action: () => {
-        // Remove ALL piggy snapshots — by flag OR by note pattern (old snapshots may lack the flag)
-        state.transactions = state.transactions.filter(tx =>
-          !tx._piggySnapshot && !(tx.note && tx.note.startsWith('🐷 Остаток'))
-        );
+        // Remove all piggy snapshots
+        state.transactions = state.transactions.filter(tx => !tx._piggySnapshot);
         persist();
         UI.closeSheet('confirm-sheet');
         UI.closeSheet('menu-sheet');
-        // Recalculate all past months
+        // Recalculate all
         this._autoPiggyAllPastMonths();
         recalcBalances();
         render();
@@ -2768,8 +2762,8 @@ const UI = {
     const MONTHS_RU = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 
     if (period === 'month') {
-      fromDate = new Date(state.year, state.month, 1).toISOString().slice(0,10);
-      toDate   = new Date(state.year, state.month+1, 0).toISOString().slice(0,10);
+      fromDate = localDate(new Date(state.year, state.month, 1));
+      toDate   = localDate(new Date(state.year, state.month+1, 0));
       document.getElementById('cat-detail-period').textContent = MONTHS_RU[state.month] + ' ' + state.year;
     } else if (period === '3m') {
       const d = new Date(now); d.setMonth(d.getMonth()-3);
@@ -3769,30 +3763,20 @@ render();
 Gist.init();
 I18n.apply();
 
-// Migration: remove all old piggy snapshots and recreate with correct dates
+// Migrate old piggy snapshots: fix dates from end-of-month to first day of next month
 (function migrateSnapshotDates() {
-  const hadOld = state.transactions.some(tx =>
-    tx._piggySnapshot || (tx.note && tx.note.startsWith('🐷 Остаток'))
-  );
-  if (!hadOld) return;
-  // Check if any have wrong date format (end of month instead of start of next)
-  const needsMigration = state.transactions.some(tx => {
-    if (!tx._piggySnapshot && !(tx.note && tx.note.startsWith('🐷 Остаток'))) return false;
-    if (tx._snapshotMonth === undefined) return true; // old format
-    const correctDate = new Date(tx._snapshotYear, tx._snapshotMonth + 1, 1).toISOString().slice(0, 10);
-    return tx.date !== correctDate;
+  let changed = false;
+  state.transactions.forEach(tx => {
+    if (!tx._piggySnapshot || tx._snapshotMonth === undefined) return;
+    const m = tx._snapshotMonth;
+    const y = tx._snapshotYear;
+    const correctDate = localDate(new Date(y, m + 1, 1));
+    if (tx.date !== correctDate) {
+      tx.date = correctDate;
+      changed = true;
+    }
   });
-  if (!needsMigration) return;
-  // Remove all and recreate
-  state.transactions = state.transactions.filter(tx =>
-    !tx._piggySnapshot && !(tx.note && tx.note.startsWith('🐷 Остаток'))
-  );
-  persist();
-  setTimeout(() => {
-    App._autoPiggyAllPastMonths();
-    recalcBalances();
-    render();
-  }, 100);
+  if (changed) { persist(); }
 })();
 
 piggyRecalc();
