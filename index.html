@@ -187,7 +187,7 @@ body{font-family:-apple-system,'SF Pro Text',system-ui,sans-serif;color:var(--t1
 .tab-btn.active{background:var(--green-accent);color:#fff;}
 
 /* Emoji picker */
-.emoji-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:6px;max-height:220px;overflow-y:auto;}
+.emoji-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:6px;max-height:160px;overflow-y:auto;-webkit-overflow-scrolling:touch;}
 .emoji-opt{background:var(--card2);border:none;border-radius:8px;padding:8px 4px;font-size:22px;cursor:pointer;transition:background .15s;}
 .emoji-opt:active,.emoji-opt.selected{background:rgba(48,209,88,0.25);}
 .emoji-search{width:100%;background:var(--card2);border:none;border-radius:8px;padding:8px 12px;color:var(--t1);font-size:14px;margin-bottom:6px;font-family:inherit;outline:none;}
@@ -588,10 +588,10 @@ body{font-family:-apple-system,'SF Pro Text',system-ui,sans-serif;color:var(--t1
 
   <!-- CAT EDITOR SHEET -->
   <div class="overlay" id="cat-sheet" onclick="UI.overlayClick(event,'cat-sheet')">
-    <div class="sheet">
+    <div class="sheet" style="max-height:90vh;">
       <div class="sheet-handle"></div>
       <div class="sheet-title" id="cat-sheet-title">Новая категория</div>
-      <div class="sheet-body">
+      <div class="sheet-body" style="overflow-y:auto;-webkit-overflow-scrolling:touch;">
         <label class="flabel">Тип</label>
         <div class="fselect-wrap">
           <select class="fselect" id="cat-type">
@@ -661,10 +661,10 @@ body{font-family:-apple-system,'SF Pro Text',system-ui,sans-serif;color:var(--t1
 
   <!-- GIST SETTINGS SHEET -->
   <div class="overlay" id="gist-sheet" onclick="UI.overlayClick(event,'gist-sheet')">
-    <div class="sheet">
+    <div class="sheet" style="max-height:85vh;">
       <div class="sheet-handle"></div>
       <div class="sheet-title">☁️ Настройки GitHub Gist</div>
-      <div class="sheet-body">
+      <div class="sheet-body" style="overflow-y:auto;-webkit-overflow-scrolling:touch;">
         <div class="info-box" style="margin-bottom:16px;"><span>🔑</span><span>Токен хранится только на вашем устройстве и никуда не передаётся кроме GitHub.</span></div>
         <label class="flabel">GitHub Personal Access Token</label>
         <input class="finput" id="gist-token-input" type="password" placeholder="ghp_xxxxxxxxxxxx" autocomplete="off">
