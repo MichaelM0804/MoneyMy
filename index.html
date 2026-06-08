@@ -726,6 +726,7 @@ body{font-family:-apple-system,'SF Pro Text',system-ui,sans-serif;color:var(--t1
                 <option value="discount">Discount (דיסקונט)</option>
                 <option value="mizrahi">Mizrahi-Tefahot (מזרחי)</option>
                 <option value="etoro">eToro</option>
+                <option value="psagot">Psagot (פסגות)</option>
                 <option value="generic">Общий CSV</option>
               </select>
               <span class="fselect-arrow">›</span>
@@ -1156,19 +1157,6 @@ function getCarryIntoMonth(accId, toMonth, toYear) {
   return Math.round(carry * 100) / 100;
 }
 
-
-// Накопленный баланс копилки на конец выбранного месяца
-function piggyBalanceUpToMonth(accId, toMonth, toYear) {
-  const cutoff = localDate(new Date(toYear, toMonth + 1, 0));
-  let bal = 0;
-  state.transactions.forEach(tx => {
-    if (tx.acc !== accId) return;
-    if (tx.date > cutoff) return;
-    if (tx.type === 'income')  bal += tx.amount;
-    if (tx.type === 'expense') bal -= tx.amount;
-  });
-  return Math.round(bal * 100) / 100;
-}
 function totalBalance() {
   if (state.selAcc) {
     // Show net result for the selected month: income - expense
@@ -1249,8 +1237,7 @@ function render() {
   if (acc) {
     const isPiggy = acc.isPiggybank || acc.accType === 'piggybank';
     if (isPiggy) {
-      const piggyBal = piggyBalanceUpToMonth(acc.id, state.month, state.year);
-      balEl.textContent = fmt(piggyBal, sym);
+      balEl.textContent = fmt(acc.balance, sym);
       balEl.style.color = '#FF9F0A';
       const mBal = monthBalance(acc.id);
       document.getElementById('balance-label').textContent =
@@ -1322,8 +1309,7 @@ function renderAccBar() {
     // Regular/Investment → show THIS MONTH's balance (net)
     let displayBal, displayColor;
     if (isPiggy) {
-      const piggyBal = piggyBalanceUpToMonth(a.id, state.month, state.year);
-      displayBal   = fmt(piggyBal, a.currency);
+      displayBal   = fmt(a.balance, a.currency);
       displayColor = '#FF9F0A';
     } else {
       const mBal   = monthBalance(a.id);
@@ -2279,6 +2265,8 @@ const App = {
     if (t.includes('הפניקס')) return 'phoenix';
     if (t.includes('tradeid') || t.includes('clientaccountid')) return 'ib';
     if (t.includes('etoro') || t.includes('copytradeid')) return 'etoro';
+    if (f.includes('שווי') || f.includes('psagot') || f.includes('פסגות')) return 'psagot';
+    if (t.includes('שווי') && t.includes('תאריך') && t.includes('תשואה')) return 'psagot';
     return 'generic';
   },
 
@@ -2588,6 +2576,90 @@ const App = {
         }
       });
       return {transactions: txs, finalBalance};
+    }
+
+    // ── PSAGOT (פסגות) ─────────────────────────────────────────
+    // Format: תאריך | שווי | תשואה  (daily portfolio value snapshots)
+    if (fmt === 'psagot') {
+      const s = lines[0].includes('\t') ? '\t' : lines[0].includes(';') ? ';' : ',';
+      const hdr = lines[0].split(s).map(h => h.trim().replace(/"/g,'').toLowerCase());
+      const iDate = hdr.findIndex(c => c.includes('תאריך') || c.includes('date'));
+      const iVal  = hdr.findIndex(c => c.includes('שווי') || c.includes('value') || c.includes('balance'));
+      const iYld  = hdr.findIndex(c => c.includes('תשואה') || c.includes('yield') || c.includes('return'));
+      if (iDate < 0 || iVal < 0) return {transactions: []};
+
+      // Group rows by month, take last value per month
+      const byMonth = {};
+      lines.slice(1).forEach(line => {
+        if (!line.trim()) return;
+        const r = line.split(s).map(x => x.trim().replace(/"/g,''));
+        const rawDate = r[iDate];
+        // Parse DD/MM/YYYY
+        const dm = rawDate.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/);
+        if (!dm) return;
+        const date = `${dm[3]}-${dm[2].padStart(2,'0')}-${dm[1].padStart(2,'0')}`;
+        const val = parseFloat((r[iVal]||'').replace(/,/g,''));
+        if (isNaN(val)) return;
+        const monthKey = date.slice(0,7);
+        // Keep last entry per month (latest value)
+        if (!byMonth[monthKey] || date > byMonth[monthKey].date) {
+          byMonth[monthKey] = { date, val };
+        }
+      });
+
+      const months = Object.keys(byMonth).sort();
+      let finalBalance = null;
+      if (months.length > 0) {
+        finalBalance = byMonth[months[months.length-1]].val;
+      }
+
+      // Build income transactions: monthly growth (diff between months)
+      // First month: full value as initial deposit
+      // Subsequent months: difference as yield
+      months.forEach((mk, i) => {
+        const { date, val } = byMonth[mk];
+        const lastDayOfMonth = date.slice(0,8) + new Date(parseInt(mk.split('-')[0]), parseInt(mk.split('-')[1]), 0).getDate().toString().padStart(2,'0');
+        if (i === 0) {
+          // First entry = opening balance, skip adding as transaction
+          return;
+        }
+        const prevVal = byMonth[months[i-1]].val;
+        const diff = Math.round((val - prevVal) * 100) / 100;
+        if (diff === 0) return;
+        const type = diff > 0 ? 'income' : 'expense';
+        const catName = diff > 0 ? '📈 תשואה (доходность Psagot)' : '📉 הפסד (убыток Psagot)';
+        txs.push({
+          type, acc: accId,
+          amount: Math.abs(diff),
+          note: `Psagot ${mk}`,
+          date,
+          cat: this._findOrCreateCat(catName, type),
+          _kind: diff > 0 ? 'yield' : 'yield',
+        });
+      });
+
+      const openingVal = months.length > 0 ? byMonth[months[0]].val : 0;
+      const totalYield = months.length > 1
+        ? Math.round((byMonth[months[months.length-1]].val - byMonth[months[0]].val) * 100) / 100
+        : 0;
+
+      return {
+        transactions: txs,
+        finalBalance,
+        isPension: true,
+        analysis: {
+          period: months.length > 0 ? `${byMonth[months[0]].date} — ${byMonth[months[months.length-1]].date}` : '—',
+          myDeposits: openingVal,
+          employerDeposits: 0,
+          yieldTotal: totalYield,
+          feesTotal: 0,
+          transferredIn: 0,
+          unmatched: 0,
+          netGrowth: totalYield,
+          openingBalance: openingVal,
+          finalBalance,
+        }
+      };
     }
 
     return {transactions: []};
@@ -3388,6 +3460,7 @@ const UI = {
       {id:'phoenix',  label:'הפניקס',        emoji:'🏛', color:'#e67e22'},
       {id:'ib',       label:'Interactive\nBrokers', emoji:'💹', color:'#1a1a2e'},
       {id:'etoro',    label:'eToro',         emoji:'💹', color:'#6dcc76'},
+      {id:'psagot',   label:'פסגות',         emoji:'📊', color:'#1a3a6b'},
     ];
     const grid = document.getElementById('si-source-grid');
     grid.innerHTML = SOURCES.map(s => `
@@ -3433,7 +3506,7 @@ const UI = {
     const FMT_LABELS = {
       hapoalim:'בנק הפועלים', leumi:'בנק לאומי', discount:'דיסקונט', mizrahi:'מזרחי-טפחות',
       ibi:'IBI', migdal:'מגדל', harel:'הראל', meitav:'מיטב', clal:'כלל', phoenix:'הפניקס',
-      ib:'Interactive Brokers', etoro:'eToro', generic:'CSV כללי', auto:'אוטומטי'
+      ib:'Interactive Brokers', etoro:'eToro', psagot:'פסגות', generic:'CSV כללי', auto:'אוטומטי'
     };
 
     document.getElementById('si-detected-badge').textContent = '📂 ' + (FMT_LABELS[fmt]||fmt);
