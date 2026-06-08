@@ -1157,6 +1157,19 @@ function getCarryIntoMonth(accId, toMonth, toYear) {
   return Math.round(carry * 100) / 100;
 }
 
+// Накопленный баланс копилки на конец выбранного месяца
+function piggyBalanceUpToMonth(accId, toMonth, toYear) {
+  const cutoff = localDate(new Date(toYear, toMonth + 1, 0));
+  let bal = 0;
+  state.transactions.forEach(tx => {
+    if (tx.acc !== accId) return;
+    if (tx.date > cutoff) return;
+    if (tx.type === 'income')  bal += tx.amount;
+    if (tx.type === 'expense') bal -= tx.amount;
+  });
+  return Math.round(bal * 100) / 100;
+}
+
 function totalBalance() {
   if (state.selAcc) {
     // Show net result for the selected month: income - expense
@@ -1237,7 +1250,8 @@ function render() {
   if (acc) {
     const isPiggy = acc.isPiggybank || acc.accType === 'piggybank';
     if (isPiggy) {
-      balEl.textContent = fmt(acc.balance, sym);
+      const piggyBal = piggyBalanceUpToMonth(acc.id, state.month, state.year);
+      balEl.textContent = fmt(piggyBal, sym);
       balEl.style.color = '#FF9F0A';
       const mBal = monthBalance(acc.id);
       document.getElementById('balance-label').textContent =
@@ -1309,7 +1323,8 @@ function renderAccBar() {
     // Regular/Investment → show THIS MONTH's balance (net)
     let displayBal, displayColor;
     if (isPiggy) {
-      displayBal   = fmt(a.balance, a.currency);
+      const piggyBal = piggyBalanceUpToMonth(a.id, state.month, state.year);
+      displayBal   = fmt(piggyBal, a.currency);
       displayColor = '#FF9F0A';
     } else {
       const mBal   = monthBalance(a.id);
@@ -2578,82 +2593,85 @@ const App = {
       return {transactions: txs, finalBalance};
     }
 
+
     // ── PSAGOT (פסגות) ─────────────────────────────────────────
     // Format: תאריך | שווי | תשואה  (daily portfolio value snapshots)
+    // Yield = change in portfolio value MINUS transfers already recorded in app
     if (fmt === 'psagot') {
       const s = lines[0].includes('\t') ? '\t' : lines[0].includes(';') ? ';' : ',';
       const hdr = lines[0].split(s).map(h => h.trim().replace(/"/g,'').toLowerCase());
-      const iDate = hdr.findIndex(c => c.includes('תאריך') || c.includes('date'));
-      const iVal  = hdr.findIndex(c => c.includes('שווי') || c.includes('value') || c.includes('balance'));
-      const iYld  = hdr.findIndex(c => c.includes('תשואה') || c.includes('yield') || c.includes('return'));
+      const iDate = hdr.findIndex(c => c.includes('\u05ea\u05d0\u05e8\u05d9\u05da') || c.includes('date'));
+      const iVal  = hdr.findIndex(c => c.includes('\u05e9\u05d5\u05d5\u05d9') || c.includes('value') || c.includes('balance'));
       if (iDate < 0 || iVal < 0) return {transactions: []};
 
-      // Group rows by month, take last value per month
       const byMonth = {};
       lines.slice(1).forEach(line => {
         if (!line.trim()) return;
         const r = line.split(s).map(x => x.trim().replace(/"/g,''));
         const rawDate = r[iDate];
-        // Parse DD/MM/YYYY
-        const dm = rawDate.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/);
+        const dm = rawDate.match(/^(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})$/);
         if (!dm) return;
         const date = `${dm[3]}-${dm[2].padStart(2,'0')}-${dm[1].padStart(2,'0')}`;
         const val = parseFloat((r[iVal]||'').replace(/,/g,''));
         if (isNaN(val)) return;
         const monthKey = date.slice(0,7);
-        // Keep last entry per month (latest value)
         if (!byMonth[monthKey] || date > byMonth[monthKey].date) {
           byMonth[monthKey] = { date, val };
         }
       });
 
       const months = Object.keys(byMonth).sort();
-      let finalBalance = null;
-      if (months.length > 0) {
-        finalBalance = byMonth[months[months.length-1]].val;
-      }
+      if (months.length === 0) return {transactions: []};
 
-      // Build income transactions: monthly growth (diff between months)
-      // First month: full value as initial deposit
-      // Subsequent months: difference as yield
+      const finalBalance = byMonth[months[months.length-1]].val;
+      const periodStart  = byMonth[months[0]].date;
+      const periodEnd    = byMonth[months[months.length-1]].date;
+
+      // Transfers to this account already recorded in app
+      const existingTransfers = state.transactions.filter(tx =>
+        tx.type === 'transfer' && tx.toAcc === accId &&
+        tx.date >= periodStart && tx.date <= periodEnd
+      );
+      const totalTransferred = Math.round(existingTransfers.reduce((s,t) => s+t.amount, 0) * 100) / 100;
+
+      // Monthly yield = change in value minus transfers that month
       months.forEach((mk, i) => {
+        if (i === 0) return;
         const { date, val } = byMonth[mk];
-        const lastDayOfMonth = date.slice(0,8) + new Date(parseInt(mk.split('-')[0]), parseInt(mk.split('-')[1]), 0).getDate().toString().padStart(2,'0');
-        if (i === 0) {
-          // First entry = opening balance, skip adding as transaction
-          return;
-        }
         const prevVal = byMonth[months[i-1]].val;
-        const diff = Math.round((val - prevVal) * 100) / 100;
-        if (diff === 0) return;
-        const type = diff > 0 ? 'income' : 'expense';
-        const catName = diff > 0 ? '📈 תשואה (доходность Psagot)' : '📉 הפסד (убыток Psagot)';
+        const monthTransfers = existingTransfers
+          .filter(tx => tx.date.slice(0,7) === mk)
+          .reduce((s,t) => s+t.amount, 0);
+        const totalChange = Math.round((val - prevVal) * 100) / 100;
+        const yieldAmt    = Math.round((totalChange - monthTransfers) * 100) / 100;
+        if (yieldAmt === 0) return;
+        const type = yieldAmt > 0 ? 'income' : 'expense';
+        const catName = yieldAmt > 0 ? '\ud83d\udcc8 \u05ea\u05e9\u05d5\u05d0\u05d4 (\u0434\u043e\u0445\u043e\u0434\u043d\u043e\u0441\u0442\u044c Psagot)' : '\ud83d\udcc9 \u05d4\u05e4\u05e1\u05d3 (\u0443\u0431\u044b\u0442\u043e\u043a Psagot)';
         txs.push({
           type, acc: accId,
-          amount: Math.abs(diff),
+          amount: Math.abs(yieldAmt),
           note: `Psagot ${mk}`,
           date,
           cat: this._findOrCreateCat(catName, type),
-          _kind: diff > 0 ? 'yield' : 'yield',
+          _kind: 'yield',
         });
       });
 
-      const openingVal = months.length > 0 ? byMonth[months[0]].val : 0;
-      const totalYield = months.length > 1
-        ? Math.round((byMonth[months[months.length-1]].val - byMonth[months[0]].val) * 100) / 100
-        : 0;
+      const openingVal = byMonth[months[0]].val;
+      const totalGrowth = Math.round((finalBalance - openingVal) * 100) / 100;
+      const totalYield  = Math.round((totalGrowth - totalTransferred) * 100) / 100;
 
       return {
         transactions: txs,
         finalBalance,
         isPension: true,
         analysis: {
-          period: months.length > 0 ? `${byMonth[months[0]].date} — ${byMonth[months[months.length-1]].date}` : '—',
-          myDeposits: openingVal,
+          period: `${periodStart} \u2014 ${periodEnd}`,
+          myDeposits: totalTransferred,
           employerDeposits: 0,
           yieldTotal: totalYield,
           feesTotal: 0,
-          transferredIn: 0,
+          transferredIn: totalTransferred,
           unmatched: 0,
           netGrowth: totalYield,
           openingBalance: openingVal,
@@ -3705,17 +3723,62 @@ const Gist = {
     }
   },
 
-  saveSettings() {
+  async saveSettings() {
     const token = document.getElementById('gist-token-input').value.trim();
     const id    = document.getElementById('gist-id-input').value.trim();
     if (!token) { UI.toast('Введите токен'); return; }
     localStorage.setItem('monefy_gist_token', token);
-    if (id) localStorage.setItem('monefy_gist_id', id);
-    else localStorage.removeItem('monefy_gist_id');
-    this.updateStatusBar('✅ Токен сохранён', '#30D158');
-    this.startAutosave();
+    if (id) {
+      localStorage.setItem('monefy_gist_id', id);
+      this.updateStatusBar('✅ Токен сохранён', '#30D158');
+      this.startAutosave();
+      UI.closeSheet('gist-sheet');
+      UI.toast('✅ Токен сохранён');
+      return;
+    }
+    this.updateStatusBar('🔍 Поиск данных на GitHub...', '#FF9F0A');
     UI.closeSheet('gist-sheet');
-    UI.toast('✅ Токен сохранён — автосохранение каждые 5 мин');
+    try {
+      const res = await fetch('https://api.github.com/gists?per_page=50', {
+        headers: { Authorization: `token ${token}` }
+      });
+      const gists = await res.json();
+      if (!res.ok) throw new Error(gists.message || res.status);
+      const found = gists.find(g => g.files && g.files['monefy-data.json']);
+      if (found) {
+        localStorage.removeItem('monefy_gist_id');
+        UI.openConfirm(
+          '☁️ Найдены данные в облаке',
+          `Найден архив MoneyMy от ${new Date(found.updated_at).toLocaleDateString('ru')}.
+
+Загрузить данные из облака?`,
+          [
+            { label: '⬇️ Загрузить из облака', color: '#5B8DEF', action: async () => {
+              localStorage.setItem('monefy_gist_id', found.id);
+              UI.closeSheet('confirm-sheet');
+              await Gist.load();
+              Gist.startAutosave();
+            }},
+            { label: '☁️ Сохранить текущие данные', color: '#30D158', action: () => {
+              localStorage.setItem('monefy_gist_id', found.id);
+              UI.closeSheet('confirm-sheet');
+              Gist.save();
+              Gist.startAutosave();
+            }},
+          ]
+        );
+      } else {
+        localStorage.removeItem('monefy_gist_id');
+        this.updateStatusBar('✅ Токен сохранён', '#30D158');
+        this.startAutosave();
+        UI.toast('✅ Токен сохранён — нажмите ☁️ Сохранить для создания архива');
+      }
+    } catch(e) {
+      localStorage.removeItem('monefy_gist_id');
+      this.updateStatusBar('✅ Токен сохранён', '#30D158');
+      this.startAutosave();
+      UI.toast('✅ Токен сохранён');
+    }
   },
 
   clearSettings() {
@@ -3737,6 +3800,7 @@ const Gist = {
     if (this._autosaveTimer) clearInterval(this._autosaveTimer);
     this._autosaveTimer = setInterval(async () => {
       if (!this.getToken()) return;
+      if (!this.getGistId()) return; // не создавать Gist автоматически
       await this.save(true); // silent = true
     }, 5 * 60 * 1000); // каждые 5 минут
   },
