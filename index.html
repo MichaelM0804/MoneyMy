@@ -25,7 +25,7 @@ body{font-family:-apple-system,'SF Pro Text',system-ui,sans-serif;color:var(--t1
 #app{display:flex;flex-direction:column;height:100vh;max-width:430px;margin:0 auto;position:relative;overflow:hidden;background:#000;}
 
 /* Top gradient */
-.top-area{background:linear-gradient(180deg,#0d3d22 0%,var(--green) 40%,var(--green2) 100%);padding-top:var(--safe-top);flex-shrink:0;overflow:hidden;}
+.top-area{background:linear-gradient(180deg,#0d3d22 0%,var(--green) 40%,var(--green2) 100%);padding-top:var(--safe-top);}
 .statusbar{display:flex;justify-content:space-between;align-items:center;padding:4px 24px 0;font-size:15px;font-weight:600;}
 .sb-right{display:flex;align-items:center;gap:6px;font-size:12px;}
 .topbar{display:flex;align-items:center;justify-content:space-between;padding:8px 20px 4px;}
@@ -36,15 +36,8 @@ body{font-family:-apple-system,'SF Pro Text',system-ui,sans-serif;color:var(--t1
 .nav-btn{background:none;border:none;color:rgba(255,255,255,0.6);font-size:24px;cursor:pointer;padding:0 8px;line-height:1;}
 
 /* Donut */
-.chart-area{display:flex;flex-direction:column;align-items:center;padding:4px 0 6px;overflow:hidden;}
-.donut-wrap{position:relative;width:190px;height:190px;flex-shrink:0;}
-@media (max-height:600px){
-  .donut-wrap{width:130px;height:130px;}
-  #donut-canvas{width:130px;height:130px;}
-  .donut-legend{display:none;}
-  .summary-row{padding:2px 0;}
-  .chart-area{padding:2px 0 4px;}
-}
+.chart-area{display:flex;flex-direction:column;align-items:center;padding:4px 0 6px;}
+.donut-wrap{position:relative;width:190px;height:190px;}
 /* Donut legend */
 .donut-legend{width:calc(100% - 32px);margin-top:8px;display:flex;flex-direction:column;gap:5px;}
 .legend-row{display:flex;align-items:center;gap:8px;}
@@ -89,7 +82,7 @@ body{font-family:-apple-system,'SF Pro Text',system-ui,sans-serif;color:var(--t1
 .add-acc-chip span{font-size:13px;color:var(--green-accent);font-weight:600;}
 
 /* Category grid */
-.cat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:0 10px 6px;overflow-y:auto;-webkit-overflow-scrolling:touch;max-height:200px;flex-shrink:0;}
+.cat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:0 10px 6px;flex-shrink:0;}
 .cat-btn{background:none;border:none;cursor:pointer;padding:7px 3px;display:flex;flex-direction:column;align-items:center;gap:2px;border-radius:12px;transition:background .15s;position:relative;}
 .cat-btn:active{background:rgba(255,255,255,0.06);}
 .cat-icon-wrap{width:42px;height:42px;border-radius:21px;display:flex;align-items:center;justify-content:center;font-size:20px;}
@@ -1163,6 +1156,19 @@ function getCarryIntoMonth(accId, toMonth, toYear) {
   return Math.round(carry * 100) / 100;
 }
 
+
+// Накопленный баланс копилки на конец выбранного месяца
+function piggyBalanceUpToMonth(accId, toMonth, toYear) {
+  const cutoff = localDate(new Date(toYear, toMonth + 1, 0));
+  let bal = 0;
+  state.transactions.forEach(tx => {
+    if (tx.acc !== accId) return;
+    if (tx.date > cutoff) return;
+    if (tx.type === 'income')  bal += tx.amount;
+    if (tx.type === 'expense') bal -= tx.amount;
+  });
+  return Math.round(bal * 100) / 100;
+}
 function totalBalance() {
   if (state.selAcc) {
     // Show net result for the selected month: income - expense
@@ -1243,7 +1249,8 @@ function render() {
   if (acc) {
     const isPiggy = acc.isPiggybank || acc.accType === 'piggybank';
     if (isPiggy) {
-      balEl.textContent = fmt(acc.balance, sym);
+      const piggyBal = piggyBalanceUpToMonth(acc.id, state.month, state.year);
+      balEl.textContent = fmt(piggyBal, sym);
       balEl.style.color = '#FF9F0A';
       const mBal = monthBalance(acc.id);
       document.getElementById('balance-label').textContent =
@@ -1315,7 +1322,8 @@ function renderAccBar() {
     // Regular/Investment → show THIS MONTH's balance (net)
     let displayBal, displayColor;
     if (isPiggy) {
-      displayBal   = fmt(a.balance, a.currency);
+      const piggyBal = piggyBalanceUpToMonth(a.id, state.month, state.year);
+      displayBal   = fmt(piggyBal, a.currency);
       displayColor = '#FF9F0A';
     } else {
       const mBal   = monthBalance(a.id);
@@ -3624,66 +3632,17 @@ const Gist = {
     }
   },
 
-  async saveSettings() {
+  saveSettings() {
     const token = document.getElementById('gist-token-input').value.trim();
     const id    = document.getElementById('gist-id-input').value.trim();
     if (!token) { UI.toast('Введите токен'); return; }
-
     localStorage.setItem('monefy_gist_token', token);
-    if (id) {
-      localStorage.setItem('monefy_gist_id', id);
-      this.updateStatusBar('✅ Токен сохранён', '#30D158');
-      this.startAutosave();
-      UI.closeSheet('gist-sheet');
-      UI.toast('✅ Токен сохранён');
-      return;
-    }
-
-    // No ID — search for existing monefy-data.json in user's Gists
-    this.updateStatusBar('🔍 Поиск данных на GitHub...', '#FF9F0A');
+    if (id) localStorage.setItem('monefy_gist_id', id);
+    else localStorage.removeItem('monefy_gist_id');
+    this.updateStatusBar('✅ Токен сохранён', '#30D158');
+    this.startAutosave();
     UI.closeSheet('gist-sheet');
-
-    try {
-      const res = await fetch('https://api.github.com/gists?per_page=50', {
-        headers: { Authorization: `token ${token}` }
-      });
-      const gists = await res.json();
-      if (!res.ok) throw new Error(gists.message || res.status);
-
-      const found = gists.find(g => g.files && g.files['monefy-data.json']);
-
-      if (found) {
-        localStorage.removeItem('monefy_gist_id');
-        UI.openConfirm(
-          '☁️ Найдены данные в облаке',
-          `Найден архив MoneyMy от ${new Date(found.updated_at).toLocaleDateString('ru')}.\n\nЗагрузить данные из облака?`,
-          [
-            { label: '⬇️ Загрузить из облака', color: '#5B8DEF', action: async () => {
-              localStorage.setItem('monefy_gist_id', found.id);
-              UI.closeSheet('confirm-sheet');
-              await Gist.load();
-              Gist.startAutosave();
-            }},
-            { label: '☁️ Сохранить текущие данные', color: '#30D158', action: () => {
-              localStorage.setItem('monefy_gist_id', found.id);
-              UI.closeSheet('confirm-sheet');
-              Gist.save();
-              Gist.startAutosave();
-            }},
-          ]
-        );
-      } else {
-        localStorage.removeItem('monefy_gist_id');
-        this.updateStatusBar('✅ Токен сохранён', '#30D158');
-        this.startAutosave();
-        UI.toast('✅ Токен сохранён — нажмите ☁️ Сохранить для создания архива');
-      }
-    } catch(e) {
-      localStorage.removeItem('monefy_gist_id');
-      this.updateStatusBar('✅ Токен сохранён', '#30D158');
-      this.startAutosave();
-      UI.toast('✅ Токен сохранён');
-    }
+    UI.toast('✅ Токен сохранён — автосохранение каждые 5 мин');
   },
 
   clearSettings() {
