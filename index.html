@@ -3624,17 +3624,66 @@ const Gist = {
     }
   },
 
-  saveSettings() {
+  async saveSettings() {
     const token = document.getElementById('gist-token-input').value.trim();
     const id    = document.getElementById('gist-id-input').value.trim();
     if (!token) { UI.toast('Введите токен'); return; }
+
     localStorage.setItem('monefy_gist_token', token);
-    if (id) localStorage.setItem('monefy_gist_id', id);
-    else localStorage.removeItem('monefy_gist_id');
-    this.updateStatusBar('✅ Токен сохранён', '#30D158');
-    this.startAutosave();
+    if (id) {
+      localStorage.setItem('monefy_gist_id', id);
+      this.updateStatusBar('✅ Токен сохранён', '#30D158');
+      this.startAutosave();
+      UI.closeSheet('gist-sheet');
+      UI.toast('✅ Токен сохранён');
+      return;
+    }
+
+    // No ID — search for existing monefy-data.json in user's Gists
+    this.updateStatusBar('🔍 Поиск данных на GitHub...', '#FF9F0A');
     UI.closeSheet('gist-sheet');
-    UI.toast('✅ Токен сохранён — автосохранение каждые 5 мин');
+
+    try {
+      const res = await fetch('https://api.github.com/gists?per_page=50', {
+        headers: { Authorization: `token ${token}` }
+      });
+      const gists = await res.json();
+      if (!res.ok) throw new Error(gists.message || res.status);
+
+      const found = gists.find(g => g.files && g.files['monefy-data.json']);
+
+      if (found) {
+        localStorage.removeItem('monefy_gist_id');
+        UI.openConfirm(
+          '☁️ Найдены данные в облаке',
+          `Найден архив MoneyMy от ${new Date(found.updated_at).toLocaleDateString('ru')}.\n\nЗагрузить данные из облака?`,
+          [
+            { label: '⬇️ Загрузить из облака', color: '#5B8DEF', action: async () => {
+              localStorage.setItem('monefy_gist_id', found.id);
+              UI.closeSheet('confirm-sheet');
+              await Gist.load();
+              Gist.startAutosave();
+            }},
+            { label: '☁️ Сохранить текущие данные', color: '#30D158', action: () => {
+              localStorage.setItem('monefy_gist_id', found.id);
+              UI.closeSheet('confirm-sheet');
+              Gist.save();
+              Gist.startAutosave();
+            }},
+          ]
+        );
+      } else {
+        localStorage.removeItem('monefy_gist_id');
+        this.updateStatusBar('✅ Токен сохранён', '#30D158');
+        this.startAutosave();
+        UI.toast('✅ Токен сохранён — нажмите ☁️ Сохранить для создания архива');
+      }
+    } catch(e) {
+      localStorage.removeItem('monefy_gist_id');
+      this.updateStatusBar('✅ Токен сохранён', '#30D158');
+      this.startAutosave();
+      UI.toast('✅ Токен сохранён');
+    }
   },
 
   clearSettings() {
