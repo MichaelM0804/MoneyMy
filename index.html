@@ -1156,19 +1156,6 @@ function getCarryIntoMonth(accId, toMonth, toYear) {
   return Math.round(carry * 100) / 100;
 }
 
-// Piggybank balance up to end of selected month (накопленный баланс на конец месяца)
-function piggyBalanceUpToMonth(accId, toMonth, toYear) {
-  const cutoff = localDate(new Date(toYear, toMonth + 1, 0)); // last day of month
-  let bal = 0;
-  state.transactions.forEach(tx => {
-    if (tx.acc !== accId) return;
-    if (tx.date > cutoff) return;
-    if (tx.type === 'income')  bal += tx.amount;
-    if (tx.type === 'expense') bal -= tx.amount;
-  });
-  return Math.round(bal * 100) / 100;
-}
-
 function totalBalance() {
   if (state.selAcc) {
     // Show net result for the selected month: income - expense
@@ -1249,8 +1236,7 @@ function render() {
   if (acc) {
     const isPiggy = acc.isPiggybank || acc.accType === 'piggybank';
     if (isPiggy) {
-      const piggyBal = piggyBalanceUpToMonth(acc.id, state.month, state.year);
-      balEl.textContent = fmt(piggyBal, sym);
+      balEl.textContent = fmt(acc.balance, sym);
       balEl.style.color = '#FF9F0A';
       const mBal = monthBalance(acc.id);
       document.getElementById('balance-label').textContent =
@@ -1322,8 +1308,7 @@ function renderAccBar() {
     // Regular/Investment → show THIS MONTH's balance (net)
     let displayBal, displayColor;
     if (isPiggy) {
-      const piggyBal = piggyBalanceUpToMonth(a.id, state.month, state.year);
-      displayBal   = fmt(piggyBal, a.currency);
+      displayBal   = fmt(a.balance, a.currency);
       displayColor = '#FF9F0A';
     } else {
       const mBal   = monthBalance(a.id);
@@ -3632,17 +3617,71 @@ const Gist = {
     }
   },
 
-  saveSettings() {
+  async saveSettings() {
     const token = document.getElementById('gist-token-input').value.trim();
     const id    = document.getElementById('gist-id-input').value.trim();
     if (!token) { UI.toast('Введите токен'); return; }
+
+    // Save token and explicit ID first
     localStorage.setItem('monefy_gist_token', token);
-    if (id) localStorage.setItem('monefy_gist_id', id);
-    else localStorage.removeItem('monefy_gist_id');
-    this.updateStatusBar('✅ Токен сохранён', '#30D158');
-    this.startAutosave();
+    if (id) {
+      localStorage.setItem('monefy_gist_id', id);
+      this.updateStatusBar('✅ Токен сохранён', '#30D158');
+      this.startAutosave();
+      UI.closeSheet('gist-sheet');
+      UI.toast('✅ Токен сохранён');
+      return;
+    }
+
+    // No ID provided — search user's Gists for existing monefy-data.json
+    this.updateStatusBar('🔍 Поиск данных на GitHub...', '#FF9F0A');
     UI.closeSheet('gist-sheet');
-    UI.toast('✅ Токен сохранён — автосохранение каждые 5 мин');
+
+    try {
+      const res = await fetch('https://api.github.com/gists?per_page=50', {
+        headers: { Authorization: `token ${token}` }
+      });
+      const gists = await res.json();
+      if (!res.ok) throw new Error(gists.message || res.status);
+
+      // Find Gist with monefy-data.json
+      const found = gists.find(g => g.files && g.files['monefy-data.json']);
+
+      if (found) {
+        // Found existing data — ask user what to do
+        localStorage.removeItem('monefy_gist_id'); // clear first
+        UI.openConfirm(
+          '☁️ Найдены данные в облаке',
+          `Найден архив MoneyMy от ${new Date(found.updated_at).toLocaleDateString('ru')}.\n\nЗагрузить данные из облака?`,
+          [
+            { label: '⬇️ Загрузить из облака', color: '#5B8DEF', action: async () => {
+              localStorage.setItem('monefy_gist_id', found.id);
+              UI.closeSheet('confirm-sheet');
+              await Gist.load();
+              Gist.startAutosave();
+            }},
+            { label: '☁️ Сохранить текущие данные', color: '#30D158', action: () => {
+              localStorage.setItem('monefy_gist_id', found.id);
+              UI.closeSheet('confirm-sheet');
+              Gist.save();
+              Gist.startAutosave();
+            }},
+          ]
+        );
+      } else {
+        // No existing Gist — create new on first save
+        localStorage.removeItem('monefy_gist_id');
+        this.updateStatusBar('✅ Токен сохранён', '#30D158');
+        this.startAutosave();
+        UI.toast('✅ Токен сохранён — нажмите ☁️ Сохранить для создания архива');
+      }
+    } catch(e) {
+      // Can't search — just save token and let user manage manually
+      localStorage.removeItem('monefy_gist_id');
+      this.updateStatusBar('✅ Токен сохранён', '#30D158');
+      this.startAutosave();
+      UI.toast('✅ Токен сохранён');
+    }
   },
 
   clearSettings() {
@@ -3664,7 +3703,6 @@ const Gist = {
     if (this._autosaveTimer) clearInterval(this._autosaveTimer);
     this._autosaveTimer = setInterval(async () => {
       if (!this.getToken()) return;
-      if (!this.getGistId()) return; // НЕ создавать новый Gist автоматически
       await this.save(true); // silent = true
     }, 5 * 60 * 1000); // каждые 5 минут
   },
