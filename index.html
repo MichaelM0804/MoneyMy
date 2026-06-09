@@ -2383,7 +2383,7 @@ const App = {
     if (t.includes('tradeid') || t.includes('clientaccountid')) return 'ib';
     if (t.includes('etoro') || t.includes('copytradeid')) return 'etoro';
     if (f.includes('שווי') || f.includes('psagot') || f.includes('פסגות')) return 'psagot';
-    if (t.includes('שווי') && t.includes('תאריך') && t.includes('תשואה')) return 'psagot';
+    if (t.includes('שווי') || (t.includes('תאריך') && t.includes('תשואה'))) return 'psagot';
     return 'generic';
   },
 
@@ -2701,9 +2701,9 @@ const App = {
     // Yield = change in portfolio value MINUS transfers already recorded in app
     if (fmt === 'psagot') {
       const s = lines[0].includes('\t') ? '\t' : lines[0].includes(';') ? ';' : ',';
-      const hdr = lines[0].split(s).map(h => h.trim().replace(/"/g,'').toLowerCase());
-      const iDate = hdr.findIndex(c => c.includes('\u05ea\u05d0\u05e8\u05d9\u05da') || c.includes('date'));
-      const iVal  = hdr.findIndex(c => c.includes('\u05e9\u05d5\u05d5\u05d9') || c.includes('value') || c.includes('balance'));
+      const hdr = lines[0].split(s).map(h => h.trim().replace(/"/g,''));
+      const iDate = hdr.findIndex(c => c.includes('תאריך') || c.toLowerCase().includes('date'));
+      const iVal  = hdr.findIndex(c => c.includes('שווי') || c.toLowerCase().includes('value') || c.toLowerCase().includes('balance'));
       if (iDate < 0 || iVal < 0) return {transactions: []};
 
       const byMonth = {};
