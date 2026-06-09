@@ -247,6 +247,7 @@ body{font-family:-apple-system,'SF Pro Text',system-ui,sans-serif;color:var(--t1
 .toast{position:absolute;top:calc(var(--safe-top) + 60px);left:50%;transform:translateX(-50%) translateY(-20px);background:rgba(30,30,30,0.95);color:#fff;padding:10px 18px;border-radius:12px;font-size:13px;font-weight:500;opacity:0;transition:all .3s;pointer-events:none;white-space:nowrap;z-index:100;backdrop-filter:blur(10px);}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 <div id="app">
@@ -2305,13 +2306,11 @@ const App = {
     const manual = document.getElementById('si-format-manual').value;
     if (!accId) { UI.toast('Выберите счёт'); return; }
 
-    const reader = new FileReader();
-    reader.onload = e => {
-      try {
-        let text = e.target.result;
-        if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+    const isXlsx = /\.(xlsx|xls)$/i.test(file.name);
 
-        // Detect format
+    const processText = (text) => {
+      try {
+        if (typeof text.charCodeAt === 'function' && text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
         const fmt = manual !== 'auto' ? manual : this._detectFormat(text, file.name);
         const result = this._parseByFormat(fmt, text, accId);
         if (!result || result.transactions.length === 0) {
@@ -2325,7 +2324,26 @@ const App = {
         console.error(err);
       }
     };
-    reader.readAsText(file, 'UTF-8');
+
+    if (isXlsx && typeof XLSX !== 'undefined') {
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const wb = XLSX.read(e.target.result, {type: 'array', cellDates: false});
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const csv = XLSX.utils.sheet_to_csv(ws, {FS: ';'});
+          processText(csv);
+        } catch(err) {
+          alert('Ошибка чтения xlsx:\n' + err.message);
+          console.error(err);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = e => processText(e.target.result);
+      reader.readAsText(file, 'UTF-8');
+    }
   },
 
   smartImportConfirm() {
