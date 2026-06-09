@@ -1532,13 +1532,17 @@ const App = {
           tx._snapshotMonth === m && tx._snapshotYear === y)
       );
 
-      if (monthNet <= 0) return; // nothing to copy
+      if (monthNet === 0) return; // nothing to copy
 
-      // Add fresh snapshot
+      // Add fresh snapshot — positive = income, negative = expense
+      const snapType = monthNet > 0 ? 'income' : 'expense';
+      const snapCat  = monthNet > 0
+        ? this._findOrCreateCat('🐷 Остаток месяца', 'income')
+        : this._findOrCreateCat('🐷 Расход из копилки', 'expense');
       state.transactions.push({
-        type: 'income',
-        cat:  this._findOrCreateCat('🐷 Остаток месяца', 'income'),
-        acc:  tgt.id, amount: monthNet, note,
+        type: snapType,
+        cat:  snapCat,
+        acc:  tgt.id, amount: Math.abs(monthNet), note,
         date: snapshotDate,
         _piggySnapshot: true, _sourceAccId: acc.id,
         _snapshotMonth: m, _snapshotYear: y,
