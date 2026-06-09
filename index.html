@@ -1178,13 +1178,32 @@ function piggyBalanceUpToMonth(accId, toMonth, toYear) {
   return Math.round(bal * 100) / 100;
 }
 
+// Баланс счёта на конец выбранного месяца (все транзакции включая переводы)
+function accountBalanceUpToMonth(accId, toMonth, toYear) {
+  const acc = getAcc(accId);
+  const opening = acc?.carry?.opening || 0;
+  const cutoff = localDate(new Date(toYear, toMonth + 1, 0)); // последний день месяца
+  let bal = opening;
+  state.transactions.forEach(tx => {
+    if (tx.date > cutoff) return;
+    if (tx.type === 'income'   && tx.acc === accId)     bal += tx.amount;
+    if (tx.type === 'expense'  && tx.acc === accId)     bal -= tx.amount;
+    if (tx.type === 'transfer' && tx.toAcc === accId)   bal += tx.amount;
+    if (tx.type === 'transfer' && tx.fromAcc === accId) bal -= tx.amount;
+  });
+  return Math.round(bal * 100) / 100;
+}
+
 function totalBalance() {
   if (state.selAcc) {
     // Show net result for the selected month: income - expense
     const {income, expense} = summary();
     return income - expense;
   }
-  return state.accounts.filter(a => a.carry.includeInTotal).reduce((s, a) => s + a.balance, 0);
+  // Sum balance of all included accounts up to end of selected month
+  return state.accounts
+    .filter(a => a.carry?.includeInTotal)
+    .reduce((s, a) => s + accountBalanceUpToMonth(a.id, state.month, state.year), 0);
 }
 function catSpend() {
   const map = {};
