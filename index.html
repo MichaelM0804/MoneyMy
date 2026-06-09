@@ -1181,7 +1181,7 @@ function piggyBalanceUpToMonth(accId, toMonth, toYear) {
 // Баланс счёта на конец выбранного месяца (все транзакции включая переводы)
 function accountBalanceUpToMonth(accId, toMonth, toYear) {
   const acc = getAcc(accId);
-  const opening = acc?.carry?.opening || 0;
+  const opening = (acc?.carry?.enabled && acc?.carry?.opening) ? acc.carry.opening : 0;
   const cutoff = localDate(new Date(toYear, toMonth + 1, 0)); // последний день месяца
   let bal = opening;
   state.transactions.forEach(tx => {
