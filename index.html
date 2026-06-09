@@ -2296,7 +2296,7 @@ const App = {
       try {
         if (typeof text.charCodeAt === 'function' && text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
         const fileFormat = manual !== 'auto' ? manual : this._detectFormat(text, file.name);
-        const result = this._parseByFormat(fmt, text, accId);
+        const result = this._parseByFormat(fileFormat, text, accId);
         if (!result || result.transactions.length === 0) {
           alert('Не удалось распознать транзакции в файле.\n\nПопробуйте выбрать формат вручную.');
           return;
