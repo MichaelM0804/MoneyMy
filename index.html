@@ -261,7 +261,7 @@ body{font-family:-apple-system,'SF Pro Text',system-ui,sans-serif;color:var(--t1
     </div>
     <div class="topbar">
       <button class="icon-btn" onclick="UI.openSheet('menu-sheet')">☰</button>
-      <div class="topbar-center" id="topbar-title">Все счета</div>
+      <div class="topbar-center" id="topbar-title" onclick="UI.openAccPicker()" style="cursor:pointer;display:flex;align-items:center;gap:6px;">Все счета <span style="font-size:13px;color:rgba(255,255,255,0.5);">⌄</span></div>
       <button class="icon-btn" onclick="UI.openAccSettings()">⚙</button>
     </div>
     <div class="month-nav">
@@ -292,8 +292,8 @@ body{font-family:-apple-system,'SF Pro Text',system-ui,sans-serif;color:var(--t1
 
   <!-- BOTTOM CARD -->
   <div class="bottom-card">
-    <div class="acc-bar" id="acc-bar"></div>
-    <div class="cat-grid" id="cat-grid"></div>
+    <div class="acc-bar" id="acc-bar" style="display:none"></div>
+    <div class="cat-grid" id="cat-grid" style="display:none"></div>
     <div class="history" id="history">
       <div class="history-title">Операции</div>
       <div id="tx-list"></div>
@@ -935,13 +935,48 @@ const EMOJIS = [
 const COLORS = ['#FF6B35','#4CAF82','#5B8DEF','#E84393','#9B59F5','#F5A623','#A0614B','#8E9AAF','#FF453A','#30D158','#0A84FF','#FF9F0A','#BF5AF2','#FF375F','#64D2FF','#FFD60A'];
 
 const DEFAULT_CATS_E = [
-  {id:'food',name:'Еда',icon:'🍔',color:'#FF6B35'},
-  {id:'transport',name:'Транспорт',icon:'🚗',color:'#4CAF82'},
-  {id:'housing',name:'Жильё',icon:'🏠',color:'#5B8DEF'},
-  {id:'health',name:'Здоровье',icon:'💊',color:'#E84393'},
-  {id:'entertainment',name:'Развлечения',icon:'🎬',color:'#9B59F5'},
+  // Еда и напитки
+  {id:'restaurant',name:'Рестораны и кафе',icon:'🍽',color:'#FF6B35'},
+  {id:'takeaway',name:'Еда на вынос',icon:'🥡',color:'#FF9F0A'},
+  {id:'work_food',name:'Еда на работе',icon:'🥗',color:'#30D158'},
+  {id:'supermarket',name:'Супермаркет',icon:'🛒',color:'#4CAF82'},
+  {id:'alcohol',name:'Алкоголь',icon:'🍺',color:'#A0614B'},
+  // Транспорт
+  {id:'car',name:'Машина',icon:'🚗',color:'#5B8DEF'},
+  {id:'gas',name:'Бензин',icon:'⛽',color:'#64D2FF'},
+  {id:'public_transport',name:'Общественный транспорт',icon:'🚌',color:'#0A84FF'},
+  // Связь и интернет
+  {id:'phone',name:'Связь',icon:'📱',color:'#BF5AF2'},
+  {id:'internet',name:'Интернет',icon:'🌐',color:'#5B8DEF'},
+  {id:'subscriptions',name:'Подписки',icon:'📺',color:'#9B59F5'},
+  // Дом
+  {id:'housing',name:'Жильё / аренда',icon:'🏠',color:'#5B8DEF'},
+  {id:'utilities',name:'Коммунальные',icon:'⚡',color:'#FFD60A'},
+  {id:'home_goods',name:'Товары для дома',icon:'🛋',color:'#8E9AAF'},
+  // Здоровье и красота
+  {id:'health',name:'Здоровье / аптека',icon:'💊',color:'#E84393'},
+  {id:'beauty',name:'Красота и уход',icon:'💇',color:'#FF375F'},
+  {id:'hygiene',name:'Гигиена',icon:'🧴',color:'#FF6B35'},
+  // Шоппинг
   {id:'clothes',name:'Одежда',icon:'👗',color:'#F5A623'},
-  {id:'cafe',name:'Кафе',icon:'☕',color:'#A0614B'},
+  {id:'online_shop',name:'Интернет-покупки',icon:'🛍',color:'#FF9F0A'},
+  // Развлечения и спорт
+  {id:'entertainment',name:'Развлечения',icon:'🎬',color:'#9B59F5'},
+  {id:'sport',name:'Спорт',icon:'💪',color:'#30D158'},
+  // Путешествия
+  {id:'travel',name:'Путешествия за рубеж',icon:'✈️',color:'#64D2FF'},
+  {id:'travel_il',name:'Путешествия по Израилю',icon:'🇮🇱',color:'#0A84FF'},
+  // Финансы
+  {id:'insurance',name:'Страховки',icon:'🛡',color:'#8E9AAF'},
+  {id:'credit',name:'Кредит / рассрочка',icon:'💳',color:'#FF453A'},
+  {id:'bank_fees',name:'Банковские комиссии',icon:'🏦',color:'#636366'},
+  {id:'investments',name:'Инвестиции',icon:'📈',color:'#30D158'},
+  {id:'transfers_family',name:'Переводы / помощь родным',icon:'💸',color:'#FF9F0A'},
+  {id:'currency_usd',name:'Покупка валюты (доллар)',icon:'💵',color:'#30D158'},
+  {id:'currency_eur',name:'Покупка валюты (евро)',icon:'💶',color:'#0A84FF'},
+  // Прочее
+  {id:'education',name:'Образование',icon:'📚',color:'#5B8DEF'},
+  {id:'gifts',name:'Подарки',icon:'🎁',color:'#E84393'},
   {id:'other',name:'Другое',icon:'📦',color:'#8E9AAF'},
 ];
 const DEFAULT_CATS_I = [
@@ -1228,7 +1263,23 @@ function drawDonut() {
   const spend = catSpend();
   const sym = currency();
   const cats = state.catsE.filter(c => spend[c.id]);
-  const data = cats.map(c => ({v: spend[c.id], color: c.color, icon: c.icon, name: c.name}));
+
+  // Palette of distinct bright colors for donut segments
+  const DONUT_PALETTE = [
+    '#FF6B35','#30D158','#5B8DEF','#FF9F0A','#BF5AF2','#FF375F',
+    '#64D2FF','#FFD60A','#E84393','#4CAF82','#FF453A','#0A84FF',
+    '#FF6B8A','#34C759','#AF52DE','#FF9500','#00C7BE','#FF2D55',
+    '#A2845E','#8E8E93',
+  ];
+
+  // Assign palette colors by sorted index so same category always gets same color
+  const sortedCats = [...cats].sort((a,b) => (spend[b.id]||0) - (spend[a.id]||0));
+  const colorMap = {};
+  sortedCats.forEach((c, i) => {
+    colorMap[c.id] = DONUT_PALETTE[i % DONUT_PALETTE.length];
+  });
+
+  const data = cats.map(c => ({v: spend[c.id], color: colorMap[c.id], icon: c.icon, name: c.name, id: c.id}));
   const total = data.reduce((s, d) => s + d.v, 0);
 
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2);
@@ -2766,8 +2817,8 @@ const UI = {
           <div class="reorder-bal">${fmt(a.balance, a.currency)}</div>
         </div>
         <div style="display:flex;flex-direction:column;gap:4px;">
-          <button onclick="UI._moveUp(${i})" style="background:var(--card3);border:none;border-radius:6px;color:var(--t2);width:28px;height:26px;cursor:pointer;font-size:14px;" ${i===0?'disabled':''}>↑</button>
-          <button onclick="UI._moveDown(${i})" style="background:var(--card3);border:none;border-radius:6px;color:var(--t2);width:28px;height:26px;cursor:pointer;font-size:14px;" ${i===state.accounts.length-1?'disabled':''}>↓</button>
+          <button onclick="UI._moveUp('${a.id}')" style="background:var(--card3);border:none;border-radius:6px;color:var(--t2);width:28px;height:26px;cursor:pointer;font-size:14px;">↑</button>
+          <button onclick="UI._moveDown('${a.id}')" style="background:var(--card3);border:none;border-radius:6px;color:var(--t2);width:28px;height:26px;cursor:pointer;font-size:14px;">↓</button>
         </div>
       </div>`).join('');
     this.openSheet('reorder-sheet');
@@ -2841,15 +2892,78 @@ const UI = {
     this._touchItem = null;
   },
 
-  _moveUp(i) {
-    if (i === 0) return;
-    const items = document.querySelectorAll('.reorder-item');
-    items[i-1].parentNode.insertBefore(items[i], items[i-1]);
+  _moveUp(id) {
+    const list = document.getElementById('reorder-list');
+    const items = [...list.querySelectorAll('.reorder-item')];
+    const idx = items.findIndex(el => el.dataset.id === id);
+    if (idx <= 0) return;
+    list.insertBefore(items[idx], items[idx - 1]);
   },
-  _moveDown(i) {
-    const items = document.querySelectorAll('.reorder-item');
-    if (i >= items.length-1) return;
-    items[i].parentNode.insertBefore(items[i+1], items[i]);
+  _moveDown(id) {
+    const list = document.getElementById('reorder-list');
+    const items = [...list.querySelectorAll('.reorder-item')];
+    const idx = items.findIndex(el => el.dataset.id === id);
+    if (idx < 0 || idx >= items.length - 1) return;
+    list.insertBefore(items[idx + 1], items[idx]);
+  },
+
+  openAccPicker() {
+    const acc = selAccObj();
+    let html = `
+      <div style="padding:6px 0 4px;">
+        <div onclick="App.selectAcc(null);UI.closeSheet('accpicker-sheet')"
+          style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:14px;background:${!state.selAcc?'rgba(48,209,88,0.12)':'var(--card2)'};margin-bottom:8px;cursor:pointer;border:1.5px solid ${!state.selAcc?'#30D158':'transparent'};">
+          <span style="font-size:24px">🏦</span>
+          <div style="flex:1">
+            <div style="font-size:15px;font-weight:600;color:#fff">Все счета</div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.4);">Сводный баланс</div>
+          </div>
+          ${!state.selAcc ? '<span style="color:#30D158;font-size:18px;">✓</span>' : ''}
+        </div>`;
+    state.accounts.forEach(a => {
+      const active = state.selAcc === a.id;
+      const isPiggy = a.isPiggybank || a.accType === 'piggybank';
+      const mBal = isPiggy ? piggyBalanceUpToMonth(a.id, state.month, state.year) : monthBalance(a.id);
+      const carry = isPiggy ? 0 : getCarryIntoMonth(a.id, state.month, state.year);
+      const total = Math.round((mBal + carry) * 100) / 100;
+      const balColor = isPiggy ? '#FF9F0A' : total >= 0 ? '#57D990' : '#FF8A80';
+      const balStr = isPiggy ? fmt(mBal, a.currency) : (total > 0 ? '+' : '') + fmt(total, a.currency);
+      html += `
+        <div onclick="App.selectAcc('${a.id}');UI.closeSheet('accpicker-sheet')"
+          style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:14px;background:${active?'rgba(48,209,88,0.12)':'var(--card2)'};margin-bottom:8px;cursor:pointer;border:1.5px solid ${active?'#30D158':'transparent'};">
+          <span style="font-size:24px">${a.icon}</span>
+          <div style="flex:1">
+            <div style="font-size:15px;font-weight:600;color:#fff">${a.name}</div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.4);">${a.currency}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:15px;font-weight:700;color:${balColor}">${balStr}</div>
+            ${active ? '<div style="font-size:11px;color:#30D158;">выбран</div>' : ''}
+          </div>
+        </div>`;
+    });
+    html += `
+        <div onclick="UI.closeSheet('accpicker-sheet');UI.openNewAcc()"
+          style="display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;border-radius:14px;border:1.5px dashed rgba(48,209,88,0.4);cursor:pointer;color:#30D158;font-size:14px;font-weight:600;margin-top:4px;">
+          + Добавить счёт
+        </div>
+      </div>`;
+
+    let sheet = document.getElementById('accpicker-sheet');
+    if (!sheet) {
+      const overlay = document.createElement('div');
+      overlay.className = 'overlay';
+      overlay.id = 'accpicker-sheet';
+      overlay.onclick = (e) => { if (e.target === overlay) UI.closeSheet('accpicker-sheet'); };
+      overlay.innerHTML = `<div class="sheet" style="max-height:85vh;">
+        <div class="sheet-handle"></div>
+        <div class="sheet-title">Счета</div>
+        <div class="sheet-body" id="accpicker-body"></div>
+      </div>`;
+      document.getElementById('app').appendChild(overlay);
+    }
+    document.getElementById('accpicker-body').innerHTML = html;
+    this.openSheet('accpicker-sheet');
   },
 
   openNewAcc() {
