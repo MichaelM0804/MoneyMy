@@ -1183,9 +1183,13 @@ function accountBalanceUpToMonth(accId, toMonth, toYear) {
   const acc = getAcc(accId);
   const opening = (acc?.carry?.enabled && acc?.carry?.opening) ? acc.carry.opening : 0;
   const cutoff = localDate(new Date(toYear, toMonth + 1, 0)); // последний день месяца
+  const startDate = (!acc?.carry?.enabled && acc?.carry?.resetBudget)
+    ? localDate(new Date(toYear, toMonth, 1))
+    : null;
   let bal = opening;
   state.transactions.forEach(tx => {
     if (tx.date > cutoff) return;
+    if (startDate && tx.date < startDate) return;
     if (tx.type === 'income'   && tx.acc === accId)     bal += tx.amount;
     if (tx.type === 'expense'  && tx.acc === accId)     bal -= tx.amount;
     if (tx.type === 'transfer' && tx.toAcc === accId)   bal += tx.amount;
