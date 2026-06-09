@@ -1534,6 +1534,12 @@ const App = {
 
       if (monthNet === 0) return; // nothing to copy
 
+      // If negative — only deduct if piggy fully covers the debt, otherwise skip
+      if (monthNet < 0) {
+        const piggyBal = piggyBalanceUpToMonth(tgt.id, m, y);
+        if (piggyBal < Math.abs(monthNet)) return;
+      }
+
       // Add fresh snapshot — positive = income, negative = expense
       const snapType = monthNet > 0 ? 'income' : 'expense';
       const snapCat  = monthNet > 0
