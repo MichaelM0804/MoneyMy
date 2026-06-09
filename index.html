@@ -1169,10 +1169,11 @@ function piggyBalanceUpToMonth(accId, toMonth, toYear) {
   const cutoff = localDate(new Date(toYear, toMonth + 1, 0));
   let bal = 0;
   state.transactions.forEach(tx => {
-    if (tx.acc !== accId) return;
     if (tx.date > cutoff) return;
-    if (tx.type === 'income')  bal += tx.amount;
-    if (tx.type === 'expense') bal -= tx.amount;
+    if (tx.type === 'income'   && tx.acc === accId)      bal += tx.amount;
+    if (tx.type === 'expense'  && tx.acc === accId)      bal -= tx.amount;
+    if (tx.type === 'transfer' && tx.toAcc === accId)    bal += tx.amount;
+    if (tx.type === 'transfer' && tx.fromAcc === accId)  bal -= tx.amount;
   });
   return Math.round(bal * 100) / 100;
 }
