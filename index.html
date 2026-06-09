@@ -2304,7 +2304,7 @@ const App = {
       try {
         if (typeof text.charCodeAt === 'function' && text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
         const fileFormat = manual !== 'auto' ? manual : this._detectFormat(text, file.name);
-        const result = this._parseByFormat(fileFormat, text, accId);
+        const result = this._parseByFormat(fmt, text, accId);
         if (!result || result.transactions.length === 0) {
           alert('Не удалось распознать транзакции в файле.\n\nПопробуйте выбрать формат вручную.');
           return;
@@ -3679,7 +3679,7 @@ const UI = {
     App._smartParsed = null;
   },
 
-  showSmartPreview(result, fmt, accId) {
+  showSmartPreview(result, fileFmt, accId) {
     const acc    = getAcc(accId);
     const txs    = result.transactions;
     const income = txs.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
@@ -3692,7 +3692,7 @@ const UI = {
       ib:'Interactive Brokers', etoro:'eToro', psagot:'פסגות', generic:'CSV כללי', auto:'אוטומטי'
     };
 
-    document.getElementById('si-detected-badge').textContent = '📂 ' + (FMT_LABELS[fmt]||fmt);
+    document.getElementById('si-detected-badge').textContent = '📂 ' + (FMT_LABELS[fileFmt]||fileFmt);
     document.getElementById('si-acc-badge').textContent      = (acc?.icon||'') + ' ' + (acc?.name||accId);
 
     // ── PENSION ANALYSIS BLOCK ────────────────────────────────
