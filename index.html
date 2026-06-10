@@ -2698,7 +2698,11 @@ const App = {
       const iVal  = hdr.findIndex(c => c.includes('שווי') || c.toLowerCase().includes('value') || c.toLowerCase().includes('balance'));
       if (iDate < 0 || iVal < 0) return {transactions: []};
 
+      // Build: byMonth = last value per month, firstByMonth = first value per month
       const byMonth = {};
+      const firstByMonth = {};
+      let firstRow = null;
+
       lines.slice(1).forEach(line => {
         if (!line.trim()) return;
         const r = line.split(s).map(x => x.trim().replace(/"/g,''));
@@ -2712,31 +2716,32 @@ const App = {
         if (!byMonth[monthKey] || date > byMonth[monthKey].date) {
           byMonth[monthKey] = { date, val };
         }
+        if (!firstByMonth[monthKey] || date < firstByMonth[monthKey].date) {
+          firstByMonth[monthKey] = { date, val };
+        }
+        if (!firstRow || date < firstRow.date) firstRow = { date, val };
       });
 
       const months = Object.keys(byMonth).sort();
       if (months.length === 0) return {transactions: []};
 
       const finalBalance = byMonth[months[months.length-1]].val;
-      const periodStart  = byMonth[months[0]].date;
+      const periodStart  = firstRow.date;
       const periodEnd    = byMonth[months[months.length-1]].date;
 
-      // Transfers to this account already recorded in app
       const existingTransfers = state.transactions.filter(tx =>
         tx.type === 'transfer' && tx.toAcc === accId &&
         tx.date >= periodStart && tx.date <= periodEnd
       );
       const totalTransferred = Math.round(existingTransfers.reduce((s,t) => s+t.amount, 0) * 100) / 100;
 
-      // Monthly yield = change in value minus transfers that month
       months.forEach((mk, i) => {
-        if (i === 0) return;
-        const { date, val } = byMonth[mk];
-        const prevVal = byMonth[months[i-1]].val;
+        const { date, val: endVal } = byMonth[mk];
+        const startVal = i === 0 ? firstRow.val : firstByMonth[mk].val;
         const monthTransfers = existingTransfers
           .filter(tx => tx.date.slice(0,7) === mk)
           .reduce((s,t) => s+t.amount, 0);
-        const totalChange = Math.round((val - prevVal) * 100) / 100;
+        const totalChange = Math.round((endVal - startVal) * 100) / 100;
         const yieldAmt    = Math.round((totalChange - monthTransfers) * 100) / 100;
         if (yieldAmt === 0) return;
         const type = yieldAmt > 0 ? 'income' : 'expense';
@@ -2748,10 +2753,13 @@ const App = {
           date,
           cat: this._findOrCreateCat(catName, type),
           _kind: 'yield',
+          _psagotMonth: mk,
         });
       });
 
-      const openingVal = byMonth[months[0]].val;
+      const openingVal = firstRow.val;
+      const totalGrowth = Math.round((finalBalance - openingVal) * 100) / 100;
+      const totalYield  = Math.round((totalGrowth - totalTransferred) * 100) / 100;
       const totalGrowth = Math.round((finalBalance - openingVal) * 100) / 100;
       const totalYield  = Math.round((totalGrowth - totalTransferred) * 100) / 100;
 
