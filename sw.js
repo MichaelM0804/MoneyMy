@@ -1,4 +1,4 @@
-const CACHE = 'monefy-v21';
+const CACHE = 'monefy-v22';
 const BASE = self.location.pathname.replace('/sw.js', '');
 
 const ASSETS = [
@@ -23,15 +23,18 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
+
+  // Redirect bare domain root to /MoneyMy/
+  if (url.pathname === '/' || url.pathname === '') {
+    e.respondWith(Response.redirect('/MoneyMy/', 302));
+    return;
+  }
+
   const isNav = e.request.mode === 'navigate' ||
     url.pathname === BASE + '/' ||
     url.pathname === BASE + '/index.html';
 
   if (isNav) {
-    // Stale-while-revalidate для index.html:
-    // 1. Сразу отдаём из кеша (офлайн работает)
-    // 2. Параллельно загружаем свежую версию и обновляем кеш
-    // 3. При следующем открытии — уже новая версия
     e.respondWith(
       caches.open(CACHE).then(cache =>
         cache.match(e.request).then(cached => {
@@ -49,7 +52,6 @@ self.addEventListener('fetch', e => {
       )
     );
   } else {
-    // Остальные файлы — cache-first
     e.respondWith(
       caches.match(e.request).then(cached =>
         cached || fetch(e.request).catch(() => null)
