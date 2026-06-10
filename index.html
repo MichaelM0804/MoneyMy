@@ -274,7 +274,7 @@ body{font-family:-apple-system,'SF Pro Text',system-ui,sans-serif;color:var(--t1
       <button class="nav-btn" onclick="App.changeMonth(1)">›</button>
     </div>
     <div class="chart-area">
-      <div class="donut-wrap">
+      <div class="donut-wrap" onclick="UI.openTxList()" style="cursor:pointer;">
         <canvas id="donut-canvas" width="190" height="190"></canvas>
         <div class="donut-center">
           <div class="donut-balance" id="balance-center">₪0</div>
@@ -298,7 +298,7 @@ body{font-family:-apple-system,'SF Pro Text',system-ui,sans-serif;color:var(--t1
   <div class="bottom-card">
     <div class="acc-bar" id="acc-bar" style="display:none"></div>
     <div class="cat-grid" id="cat-grid" style="display:none"></div>
-    <div class="history" id="history">
+    <div class="history" id="history" style="display:none">
       <div class="history-title">Операции</div>
       <div id="tx-list"></div>
     </div>
@@ -2930,6 +2930,71 @@ const UI = {
     const idx = items.findIndex(el => el.dataset.id === id);
     if (idx < 0 || idx >= items.length - 1) return;
     list.insertBefore(items[idx + 1], items[idx]);
+  },
+
+  openTxList() {
+    // Build transaction list sheet
+    const txs = [...filteredTx()].reverse().slice(0, 100);
+    const sym = currency();
+    const acc = selAccObj();
+
+    let html = '';
+    if (!txs.length) {
+      html = '<div class="empty-state">Нет операций за этот месяц</div>';
+    } else {
+      html = txs.map(tx => {
+        const txId = tx._id;
+        if (tx.type === 'transfer') {
+          const from = getAcc(tx.fromAcc), to = getAcc(tx.toAcc);
+          return `<div class="tx-item" onclick="UI.openEditTx('${txId}');UI.closeSheet('txlist-sheet')">
+            <div class="tx-icon" style="background:rgba(80,158,126,0.15);font-size:18px">⇄</div>
+            <div class="tx-info">
+              <div class="tx-cat">Перевод</div>
+              <div class="tx-note">${from?.icon||''} → ${to?.icon||''} ${tx.note||''} <span style="color:var(--t3)">${tx.date}</span></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <div class="tx-amt tx-tr">${fmt(tx.amount)}</div>
+              <span style="color:var(--t3);font-size:18px;">›</span>
+            </div>
+          </div>`;
+        }
+        const cat = getCat(tx.cat) || {icon:'?',name:tx.cat,color:'#888'};
+        const txAcc = getAcc(tx.acc);
+        const accSym = txAcc ? txAcc.currency : sym;
+        return `<div class="tx-item" onclick="UI.openEditTx('${txId}');UI.closeSheet('txlist-sheet')">
+          <div class="tx-icon" style="background:${cat.color}22">${cat.icon}</div>
+          <div class="tx-info">
+            <div class="tx-cat">${cat.name}</div>
+            <div class="tx-note">${txAcc?txAcc.icon+' ':''} ${tx.note||''} <span style="color:var(--t3)">${tx.date}</span></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <div class="tx-amt ${tx.type==='expense'?'tx-neg':'tx-pos'}">${tx.type==='expense'?'−':'+'}${fmt(tx.amount,accSym)}</div>
+            <span style="color:var(--t3);font-size:18px;">›</span>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    let sheet = document.getElementById('txlist-sheet');
+    if (!sheet) {
+      const overlay = document.createElement('div');
+      overlay.className = 'overlay';
+      overlay.id = 'txlist-sheet';
+      overlay.onclick = (e) => { if (e.target === overlay) UI.closeSheet('txlist-sheet'); };
+      overlay.innerHTML = `<div class="sheet" style="max-height:90vh;">
+        <div class="sheet-handle"></div>
+        <div style="padding:14px 20px 0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+          <div class="sheet-title" style="padding:0" id="txlist-title">Операции</div>
+          <button onclick="UI.closeSheet('txlist-sheet')" style="background:var(--card2);border:none;color:var(--t2);width:28px;height:28px;border-radius:50%;font-size:16px;cursor:pointer;">✕</button>
+        </div>
+        <div class="sheet-body" id="txlist-body" style="padding-top:8px;"></div>
+      </div>`;
+      document.getElementById('app').appendChild(overlay);
+    }
+    const MONTHS_RU = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+    document.getElementById('txlist-title').textContent = `Операции · ${MONTHS_RU[state.month]} ${state.year}`;
+    document.getElementById('txlist-body').innerHTML = html;
+    this.openSheet('txlist-sheet');
   },
 
   openAccPicker() {
