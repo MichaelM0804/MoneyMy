@@ -2729,9 +2729,11 @@ const App = {
       const periodStart  = firstRow.date;
       const periodEnd    = byMonth[months[months.length-1]].date;
 
+      // Only count transfers AFTER the first row in file
+      // (transfers before/on firstRow.date are already included in the starting balance)
       const existingTransfers = state.transactions.filter(tx =>
         tx.type === 'transfer' && tx.toAcc === accId &&
-        tx.date >= periodStart && tx.date <= periodEnd
+        tx.date > firstRow.date && tx.date <= periodEnd
       );
       const totalTransferred = Math.round(existingTransfers.reduce((s,t) => s+t.amount, 0) * 100) / 100;
 
