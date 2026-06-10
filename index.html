@@ -2760,8 +2760,6 @@ const App = {
       const openingVal = firstRow.val;
       const totalGrowth = Math.round((finalBalance - openingVal) * 100) / 100;
       const totalYield  = Math.round((totalGrowth - totalTransferred) * 100) / 100;
-      const totalGrowth = Math.round((finalBalance - openingVal) * 100) / 100;
-      const totalYield  = Math.round((totalGrowth - totalTransferred) * 100) / 100;
 
       return {
         transactions: txs,
