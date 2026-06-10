@@ -2,13 +2,14 @@
   "name": "Monefy — учёт финансов",
   "short_name": "Monefy",
   "description": "Личный учёт доходов и расходов",
-  "start_url": "/",
+  "start_url": "/MoneyMy/",
+  "scope": "/MoneyMy/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#000000",
   "theme_color": "#1C6B45",
   "icons": [
-    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "/MoneyMy/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/MoneyMy/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ]
 }
