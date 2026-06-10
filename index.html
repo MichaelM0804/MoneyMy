@@ -1850,7 +1850,7 @@ const App = {
     });
     // Sort by date
     rows.sort((a,b) => a[0].localeCompare(b[0]));
-    const csv = BOM + [headers, ...rows].map(r => r.join(';')).join('\r\n');
+    const csv = BOM + [headers, ...rows].map(r => r.join(',')).join('\r\n');
     this._download(csv, 'monefy-transactions.csv', 'text/csv;charset=utf-8');
     UI.closeSheet('menu-sheet');
     UI.toast('CSV-файл сохранён');
@@ -2043,7 +2043,7 @@ const App = {
   // ── CSV helpers ──────────────────────────────────────────────
   _csvEsc(s) {
     if (!s) return '';
-    if (s.includes(';') || s.includes(',') || s.includes('"') || s.includes('\n')) {
+    if (s.includes(',') || s.includes('"') || s.includes('\n')) {
       return '"' + s.replace(/"/g, '""') + '"';
     }
     return s;
