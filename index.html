@@ -326,7 +326,8 @@ body{font-family:-apple-system,'SF Pro Text',system-ui,sans-serif;color:var(--t1
 
         <!-- Period selector -->
         <div style="display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;padding-bottom:2px;">
-          <button class="period-btn active" data-period="3m"  onclick="UI.setPeriod('3m',this)">3 мес</button>
+          <button class="period-btn active" data-period="1m"  onclick="UI.setPeriod('1m',this)">1 мес</button>
+          <button class="period-btn"        data-period="3m"  onclick="UI.setPeriod('3m',this)">3 мес</button>
           <button class="period-btn"        data-period="6m"  onclick="UI.setPeriod('6m',this)">6 мес</button>
           <button class="period-btn"        data-period="1y"  onclick="UI.setPeriod('1y',this)">1 год</button>
           <button class="period-btn"        data-period="all" onclick="UI.setPeriod('all',this)">Всё время</button>
@@ -899,27 +900,23 @@ const EMOJIS = [
   // Еда и напитки
   '🍽','🥡','🥗','🛒','🍺','☕','🍔','🍷','🍕','🍣',
   // Транспорт
-  '🚗','🚕','⛽','🚌',
+  '🚗','⛽','🚌',
   // Связь и интернет
   '📱','🌐','📺',
   // Дом
-  '🏠','🏡','⚡','🛋','🪑','🛏','🪴',
+  '🏠','⚡','🛋',
   // Здоровье и красота
-  '💊','💇','✂️','🪮','🧴',
+  '💊','💇','🧴',
   // Шоппинг
   '👗','🛍',
-  // Развлечения и активности
-  '🎬','🎭','🎡','🎢','🎠','⚽','💪',
+  // Развлечения и спорт
+  '🎬','💪',
   // Путешествия
-  '✈️','🏖','🏔','🌍',
-  // Банки и копилки
-  '🏦','🏛','🏧','🐷','💰','🪙','🫙','💎',
+  '✈️','🇮🇱','🏖','🏔',
   // Финансы
-  '💳','📈','💸','💵','💶','🛡','🚨',
-  // Доходы
-  '💼','🎯','🏆','🤝','📊','💹','🎁','🎉',
+  '💳','🏦','📈','💸','💵','💶','🛡',
   // Прочее
-  '📚','📦','🏥','🎮','🎵','🎧','📝','🧾',
+  '📚','🎁','📦','💰','🪙','🏥','🎮','🎵','🎧','📝',
 ];
 const COLORS = ['#FF6B35','#4CAF82','#5B8DEF','#E84393','#9B59F5','#F5A623','#A0614B','#8E9AAF','#FF453A','#30D158','#0A84FF','#FF9F0A','#BF5AF2','#FF375F','#64D2FF','#FFD60A'];
 
@@ -3312,15 +3309,15 @@ const UI = {
   },
 
   // ─── Investment Chart ─────────────────────────────────────────
-  _investPeriod: '3m',
+  _investPeriod: '1m',
   _investChart: null,
 
   openInvestChart() {
     const acc = selAccObj();
     if (!acc) return;
     document.getElementById('invest-sheet-title').textContent = `📈 ${acc.icon} ${acc.name}`;
-    this._investPeriod = '3m';
-    document.querySelectorAll('.period-btn').forEach(b => b.classList.toggle('active', b.dataset.period === '3m'));
+    this._investPeriod = '1m';
+    document.querySelectorAll('.period-btn').forEach(b => b.classList.toggle('active', b.dataset.period === '1m'));
     document.getElementById('invest-custom-dates').style.display = 'none';
     // set default custom dates
     const now = new Date();
@@ -3344,7 +3341,8 @@ const UI = {
     const now  = new Date();
     const to   = now.toISOString().slice(0,10);
     const from = new Date(now);
-    if (this._investPeriod === '3m')     from.setMonth(from.getMonth()-3);
+    if (this._investPeriod === '1m')     from.setMonth(from.getMonth()-1);
+    else if (this._investPeriod === '3m')     from.setMonth(from.getMonth()-3);
     else if (this._investPeriod === '6m') from.setMonth(from.getMonth()-6);
     else if (this._investPeriod === '1y') from.setFullYear(from.getFullYear()-1);
     else if (this._investPeriod === 'all') from.setFullYear(2000);
