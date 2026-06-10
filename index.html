@@ -248,6 +248,7 @@ body{font-family:-apple-system,'SF Pro Text',system-ui,sans-serif;color:var(--t1
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
 <body>
 <div id="app">
@@ -2729,17 +2730,28 @@ const App = {
       const periodStart  = firstRow.date;
       const periodEnd    = byMonth[months[months.length-1]].date;
 
-      // Only count transfers AFTER the first row in file
-      // (transfers before/on firstRow.date are already included in the starting balance)
-      const existingTransfers = state.transactions.filter(tx =>
-        tx.type === 'transfer' && tx.toAcc === accId &&
+      // All transfers to this account within the file period
+      const allTransfers = state.transactions.filter(tx =>
+        tx.type === 'transfer' && tx.toAcc === accId
+      );
+
+      // Transfers before or on firstRow.date = already in starting balance
+      const transfersBeforeFile = allTransfers
+        .filter(tx => tx.date <= firstRow.date)
+        .reduce((s,t) => s+t.amount, 0);
+
+      // Use sum of pre-file transfers as base if available, otherwise use firstRow.val
+      const baseVal = transfersBeforeFile > 0 ? transfersBeforeFile : firstRow.val;
+
+      // Transfers strictly after firstRow.date = need to be subtracted from yield
+      const existingTransfers = allTransfers.filter(tx =>
         tx.date > firstRow.date && tx.date <= periodEnd
       );
       const totalTransferred = Math.round(existingTransfers.reduce((s,t) => s+t.amount, 0) * 100) / 100;
 
       months.forEach((mk, i) => {
         const { date, val: endVal } = byMonth[mk];
-        const startVal = i === 0 ? firstRow.val : firstByMonth[mk].val;
+        const startVal = i === 0 ? baseVal : firstByMonth[mk].val;
         const monthTransfers = existingTransfers
           .filter(tx => tx.date.slice(0,7) === mk)
           .reduce((s,t) => s+t.amount, 0);
@@ -2759,7 +2771,7 @@ const App = {
         });
       });
 
-      const openingVal = firstRow.val;
+      const openingVal = baseVal;
       const totalGrowth = Math.round((finalBalance - openingVal) * 100) / 100;
       const totalYield  = Math.round((totalGrowth - totalTransferred) * 100) / 100;
 
