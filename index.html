@@ -282,9 +282,9 @@ body{font-family:-apple-system,'SF Pro Text',system-ui,sans-serif;color:var(--t1
         </div>
       </div>
       <div class="summary-row">
-        <div class="sum-item"><div class="sum-val sum-income" id="s-income">₪0</div><div class="sum-lbl" data-i18n="income">Доходы</div></div>
-        <div class="sum-item"><div class="sum-val sum-expense" id="s-expense">₪0</div><div class="sum-lbl" data-i18n="expense">Расходы</div></div>
-        <div class="sum-item"><div class="sum-val sum-transfer" id="s-transfer">₪0</div><div class="sum-lbl" data-i18n="transfers">Переводы</div></div>
+        <div class="sum-item" onclick="UI.openTxList('income')" style="cursor:pointer;"><div class="sum-val sum-income" id="s-income">₪0</div><div class="sum-lbl" data-i18n="income">Доходы</div></div>
+        <div class="sum-item" onclick="UI.openTxList('expense')" style="cursor:pointer;"><div class="sum-val sum-expense" id="s-expense">₪0</div><div class="sum-lbl" data-i18n="expense">Расходы</div></div>
+        <div class="sum-item" onclick="UI.openTxList('transfer')" style="cursor:pointer;"><div class="sum-val sum-transfer" id="s-transfer">₪0</div><div class="sum-lbl" data-i18n="transfers">Переводы</div></div>
       </div>
       <div class="donut-legend" id="donut-legend"></div>
       <div class="budget-wrap" id="budget-wrap" style="display:none">
@@ -2932,9 +2932,15 @@ const UI = {
     list.insertBefore(items[idx + 1], items[idx]);
   },
 
-  openTxList() {
-    // Build transaction list sheet
-    const txs = [...filteredTx()].reverse().slice(0, 100);
+  openTxList(filter, catId) {
+    // Build transaction list sheet — filter: 'income'|'expense'|'transfer'|'cat'|undefined
+    let txs = [...filteredTx()].sort((a,b) => b.date.localeCompare(a.date));
+    if (filter === 'cat' && catId) {
+      txs = txs.filter(t => t.cat === catId);
+    } else if (filter === 'income' || filter === 'expense' || filter === 'transfer') {
+      txs = txs.filter(t => t.type === filter);
+    }
+    txs = txs.slice(0, 100);
     const sym = currency();
     const acc = selAccObj();
 
@@ -2992,7 +2998,8 @@ const UI = {
       document.getElementById('app').appendChild(overlay);
     }
     const MONTHS_RU = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
-    document.getElementById('txlist-title').textContent = `Операции · ${MONTHS_RU[state.month]} ${state.year}`;
+    const filterLabel = filter === 'income' ? 'Доходы' : filter === 'expense' ? 'Расходы' : filter === 'transfer' ? 'Переводы' : filter === 'cat' && catId ? (allCats().find(c=>c.id===catId)?.name||'Категория') : 'Операции';
+    document.getElementById('txlist-title').textContent = `${filterLabel} · ${MONTHS_RU[state.month]} ${state.year}`;
     document.getElementById('txlist-body').innerHTML = html;
     this.openSheet('txlist-sheet');
   },
@@ -4232,18 +4239,23 @@ piggyRecalc();
 // SWIPE TO CLOSE SHEETS
 // ═══════════════════════════════════════════════════════════════
 (function() {
-  let startY = 0, startX = 0, sheetEl = null, overlayId = null;
+  let startY = 0, startX = 0, sheetEl = null, overlayId = null, dragging = false;
 
   document.addEventListener('touchstart', e => {
     const handle = e.target.closest('.sheet-handle');
     const sheet  = e.target.closest('.sheet');
-    if (!handle && !sheet) return;
-    const overlay = sheet?.closest('.overlay');
+    if (!sheet) return;
+    const overlay = sheet.closest('.overlay');
     if (!overlay || !overlay.classList.contains('open')) return;
-    startY    = e.touches[0].clientY;
+    // Only start drag from handle or top 60px of sheet
+    const rect = sheet.getBoundingClientRect();
+    const touchY = e.touches[0].clientY;
+    if (!handle && touchY - rect.top > 60) return;
+    startY    = touchY;
     startX    = e.touches[0].clientX;
     sheetEl   = sheet;
     overlayId = overlay.id;
+    dragging  = false;
     sheetEl.style.transition = 'none';
   }, {passive: true});
 
@@ -4251,21 +4263,24 @@ piggyRecalc();
     if (!sheetEl) return;
     const dy = e.touches[0].clientY - startY;
     const dx = Math.abs(e.touches[0].clientX - startX);
-    if (dx > 20) { sheetEl = null; return; } // horizontal scroll — ignore
+    if (!dragging && dx > dy) { sheetEl = null; return; }
+    if (dy > 5) dragging = true;
     if (dy > 0) sheetEl.style.transform = `translateY(${dy}px)`;
   }, {passive: true});
 
   document.addEventListener('touchend', e => {
     if (!sheetEl) return;
     const dy = e.changedTouches[0].clientY - startY;
-    sheetEl.style.transition = '';
-    if (dy > 80) {
-      UI.closeSheet(overlayId);
+    sheetEl.style.transition = 'transform .32s cubic-bezier(.32,1,.28,1)';
+    if (dy > 100) {
+      sheetEl.style.transform = 'translateY(100%)';
+      setTimeout(() => UI.closeSheet(overlayId), 300);
     } else {
       sheetEl.style.transform = '';
     }
     sheetEl = null;
     overlayId = null;
+    dragging = false;
   }, {passive: true});
 })();
 
