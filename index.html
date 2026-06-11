@@ -1293,7 +1293,7 @@ function drawDonut() {
   const sorted = [...data].sort((a,b) => b.v - a.v);
   legend.innerHTML = sorted.map(d => {
     const pct = Math.round((d.v / total) * 100);
-    return `<div class="legend-row">
+    return `<div class="legend-row" onclick="UI.openTxList('cat','${d.id}')" style="cursor:pointer;padding:4px 0;">
       <div class="legend-dot" style="background:${d.color}"></div>
       <span class="legend-icon">${d.icon}</span>
       <span class="legend-name">${d.name}</span>
@@ -1509,6 +1509,7 @@ const App = {
     persist(); render();
     piggyRecalc();
     UI.toast('Запись обновлена');
+    if (Gist.getToken() && Gist.getGistId()) Gist.save(true);
   },
 
   deleteTx() {
@@ -1523,6 +1524,7 @@ const App = {
         persist(); render();
         piggyRecalc();
         UI.toast('Запись удалена');
+        if (Gist.getToken() && Gist.getGistId()) Gist.save(true);
       }
     }]);
   },
@@ -1694,6 +1696,7 @@ const App = {
     piggyRecalc();
     render();
     UI.toast(state.txType === 'transfer' ? 'Перевод добавлен' : state.txType === 'expense' ? 'Расход добавлен' : 'Доход добавлен');
+    if (Gist.getToken() && Gist.getGistId()) Gist.save(true);
   },
 
   deleteAccount() {
