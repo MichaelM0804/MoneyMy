@@ -1,4 +1,4 @@
-const CACHE = 'monefy-v22';
+const CACHE = 'monefy-v23';
 const BASE = self.location.pathname.replace('/sw.js', '');
 
 const ASSETS = [
@@ -35,21 +35,16 @@ self.addEventListener('fetch', e => {
     url.pathname === BASE + '/index.html';
 
   if (isNav) {
+    // Network first для навигации — всегда грузим свежую версию
     e.respondWith(
-      caches.open(CACHE).then(cache =>
-        cache.match(e.request).then(cached => {
-          const networkFetch = fetch(e.request)
-            .then(response => {
-              if (response && response.status === 200) {
-                cache.put(e.request, response.clone());
-              }
-              return response;
-            })
-            .catch(() => null);
-
-          return cached || networkFetch;
+      fetch(e.request)
+        .then(response => {
+          if (response && response.status === 200) {
+            caches.open(CACHE).then(cache => cache.put(e.request, response.clone()));
+          }
+          return response;
         })
-      )
+        .catch(() => caches.match(e.request))
     );
   } else {
     e.respondWith(
